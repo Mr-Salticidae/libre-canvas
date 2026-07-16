@@ -2,7 +2,8 @@ import { useRef } from 'react'
 import { useStore } from '../store'
 import { useUI, viewportCenter } from '../ui'
 import { uid, type Doc } from '../types'
-import { download, fileToDataURL, fitSize, loadImage } from '../helpers'
+import { download } from '../helpers'
+import { importFilesToCanvas } from '../importFiles'
 import { createGeneratorNode } from '../canvas/CanvasStage'
 
 export function Toolbar() {
@@ -39,17 +40,10 @@ export function Toolbar() {
     setSelection([node.id])
   }
 
-  const importImages = async (files: FileList | null) => {
-    if (!files) return
+  const importMedia = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
     const c = viewportCenter(camera)
-    let offset = 0
-    for (const file of Array.from(files)) {
-      const src = await fileToDataURL(file)
-      const img = await loadImage(src)
-      const { width, height } = fitSize(img.naturalWidth, img.naturalHeight)
-      addNode({ id: uid(), type: 'image', x: c.x - width / 2 + offset, y: c.y - height / 2 + offset, width, height, src })
-      offset += 32
-    }
+    await importFilesToCanvas(Array.from(files), { x: c.x - 200, y: c.y - 120 })
   }
 
   const exportJSON = () => {
@@ -73,7 +67,7 @@ export function Toolbar() {
       <span className="brand">LibreCanvas</span>
       <button onClick={addGenerator} title="添加 AI 生成节点（也可双击画布）">✦ 生成</button>
       <button onClick={addText} title="添加文本卡片">T 文本</button>
-      <button onClick={() => imageInput.current?.click()} title="导入本地图片（也可直接拖入画布）">🖼 图片</button>
+      <button onClick={() => imageInput.current?.click()} title="上传图片/视频/音频/文本文件（也可直接拖入画布）">⤒ 上传</button>
       <span className="divider" />
       <button onClick={undo} title="撤销 (Ctrl+Z)">⤺</button>
       <button onClick={redo} title="重做 (Ctrl+Shift+Z)">⤻</button>
@@ -86,11 +80,11 @@ export function Toolbar() {
       <input
         ref={imageInput}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*,audio/*,.txt,.md,.markdown"
         multiple
         hidden
         onChange={(e) => {
-          void importImages(e.target.files)
+          void importMedia(e.target.files)
           e.target.value = ''
         }}
       />

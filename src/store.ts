@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { CanvasNode, Doc, Edge } from './types'
+import { idbGet, idbSet } from './storage'
 
 const DOC_KEY = 'librecanvas.doc.v1'
 
@@ -96,8 +97,11 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 }))
 
-export function loadDocFromStorage(): Doc | null {
+export async function loadDocFromStorage(): Promise<Doc | null> {
   try {
+    const doc = await idbGet<Doc>('doc')
+    if (doc) return doc
+    // 从旧版 localStorage 迁移一次
     const raw = localStorage.getItem(DOC_KEY)
     if (!raw) return null
     return JSON.parse(raw) as Doc
@@ -112,11 +116,9 @@ export function setupAutosave() {
   useStore.subscribe((s) => {
     clearTimeout(saveTimer)
     saveTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(DOC_KEY, JSON.stringify({ nodes: s.nodes, edges: s.edges }))
-      } catch {
-        // 存储超限（大图 dataURL 可能触发），静默失败，导出 JSON 仍可用
-      }
+      void idbSet('doc', { nodes: s.nodes, edges: s.edges }).catch(() => {
+        // 写入失败（隐私模式等）静默跳过，导出 JSON 仍可用
+      })
     }, 500)
   })
 }

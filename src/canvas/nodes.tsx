@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import { Group, Image as KImage, Rect, Text } from 'react-konva'
-import type Konva from 'konva'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Circle, Group, Image as KImage, Rect, Text } from 'react-konva'
+import Konva from 'konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
 import type { CanvasNode } from '../types'
 import { useStore } from '../store'
@@ -99,6 +99,195 @@ export function ImageNode({ node, selected }: NodeProps) {
   )
 }
 
+/** 播放/暂停小圆钮（视频、音频节点共用） */
+function PlayButton({ x, y, playing, onToggle }: { x: number; y: number; playing: boolean; onToggle: () => void }) {
+  return (
+    <Group
+      x={x}
+      y={y}
+      onClick={(e) => {
+        e.cancelBubble = true
+        onToggle()
+      }}
+      onDblClick={(e) => {
+        e.cancelBubble = true
+      }}
+    >
+      <Circle radius={16} fill="rgba(20,20,28,0.75)" stroke={ACCENT} strokeWidth={1.5} />
+      <Text
+        text={playing ? '❚❚' : '▶'}
+        x={-16}
+        y={-16}
+        width={32}
+        height={32}
+        align="center"
+        verticalAlign="middle"
+        fill="#fff"
+        fontSize={playing ? 10 : 13}
+      />
+    </Group>
+  )
+}
+
+export function VideoNode({ node, selected }: NodeProps) {
+  const h = useNodeHandlers(node)
+  const updateNode = useStore((s) => s.updateNode)
+  const [playing, setPlaying] = useState(false)
+  const [ready, setReady] = useState(false)
+  const groupRef = useRef<Konva.Group>(null)
+
+  const video = useMemo(() => {
+    if (!node.src) return undefined
+    const v = document.createElement('video')
+    v.src = node.src
+    v.loop = true
+    v.playsInline = true
+    v.preload = 'auto'
+    return v
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.src])
+
+  // 首帧就绪后重绘一次；顺带按真实宽高比修正节点尺寸
+  useEffect(() => {
+    if (!video) return
+    const onReady = () => {
+      setReady(true)
+      const vw = video.videoWidth
+      const vh = video.videoHeight
+      if (vw && vh) {
+        const expected = Math.round((node.width * vh) / vw)
+        if (Math.abs(expected - node.height) > 3) updateNode(node.id, { height: expected })
+      }
+      groupRef.current?.getLayer()?.batchDraw()
+    }
+    // 小文件可能在 effect 挂载前就已加载完成，错过 loadeddata 事件
+    if (video.readyState >= 2) onReady()
+    else video.addEventListener('loadeddata', onReady)
+    const onEnd = () => setPlaying(false)
+    video.addEventListener('pause', onEnd)
+    return () => {
+      video.removeEventListener('loadeddata', onReady)
+      video.removeEventListener('pause', onEnd)
+      video.pause()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video])
+
+  // 播放期间用 Konva.Animation 驱动 layer 逐帧重绘
+  useEffect(() => {
+    if (!playing) return
+    const layer = groupRef.current?.getLayer()
+    if (!layer) return
+    const anim = new Konva.Animation(() => {}, layer)
+    anim.start()
+    return () => {
+      anim.stop()
+    }
+  }, [playing])
+
+  const toggle = () => {
+    if (!video) return
+    if (video.paused) {
+      void video.play()
+      setPlaying(true)
+    } else {
+      video.pause()
+      setPlaying(false)
+    }
+  }
+
+  return (
+    <Group ref={groupRef} x={node.x} y={node.y} draggable {...h}>
+      <Rect
+        width={node.width}
+        height={node.height}
+        fill="#000"
+        cornerRadius={8}
+        stroke={selected ? ACCENT : CARD_BORDER}
+        strokeWidth={selected ? 2.5 : 1}
+        shadowColor="#000"
+        shadowBlur={12}
+        shadowOpacity={0.4}
+      />
+      {video && ready ? (
+        <KImage image={video} width={node.width} height={node.height} cornerRadius={8} />
+      ) : (
+        <Text
+          text="加载视频…"
+          width={node.width}
+          height={node.height}
+          align="center"
+          verticalAlign="middle"
+          fill="#8888a0"
+          fontSize={13}
+        />
+      )}
+      <PlayButton x={26} y={node.height - 26} playing={playing} onToggle={toggle} />
+    </Group>
+  )
+}
+
+export function AudioNode({ node, selected }: NodeProps) {
+  const h = useNodeHandlers(node)
+  const [playing, setPlaying] = useState(false)
+
+  const audio = useMemo(() => {
+    if (!node.src) return undefined
+    return new Audio(node.src)
+  }, [node.src])
+
+  useEffect(() => {
+    if (!audio) return
+    const onStop = () => setPlaying(false)
+    audio.addEventListener('ended', onStop)
+    audio.addEventListener('pause', onStop)
+    return () => {
+      audio.removeEventListener('ended', onStop)
+      audio.removeEventListener('pause', onStop)
+      audio.pause()
+    }
+  }, [audio])
+
+  const toggle = () => {
+    if (!audio) return
+    if (audio.paused) {
+      void audio.play()
+      setPlaying(true)
+    } else {
+      audio.pause()
+      setPlaying(false)
+    }
+  }
+
+  return (
+    <Group x={node.x} y={node.y} draggable {...h}>
+      <Rect
+        width={node.width}
+        height={node.height}
+        fill={CARD_BG}
+        cornerRadius={8}
+        stroke={selected ? ACCENT : CARD_BORDER}
+        strokeWidth={selected ? 2.5 : 1}
+        shadowColor="#000"
+        shadowBlur={12}
+        shadowOpacity={0.4}
+      />
+      <Text text="🔊 音频" x={12} y={12} fill={ACCENT} fontSize={13} fontStyle="bold" />
+      <Text
+        text={node.name || node.text || '未命名音频'}
+        x={12}
+        y={36}
+        width={node.width - 70}
+        fill="#c8c8d8"
+        fontSize={12}
+        ellipsis
+        wrap="none"
+      />
+      <PlayButton x={node.width - 32} y={node.height / 2} playing={playing} onToggle={toggle} />
+    </Group>
+  )
+}
+
 export function TextNode({ node, selected }: NodeProps) {
   const h = useNodeHandlers(node)
   const updateNode = useStore((s) => s.updateNode)
@@ -149,10 +338,21 @@ export function TextNode({ node, selected }: NodeProps) {
   )
 }
 
+export const MODE_LABEL: Record<string, string> = {
+  image: '图像',
+  text: '文本',
+  video: '视频',
+  audio: '音频',
+}
+
 export function GenNode({ node, selected }: NodeProps) {
   const h = useNodeHandlers(node)
   const statusText =
-    node.status === 'running' ? '⏳ 生成中…' : node.status === 'error' ? `✕ ${node.error ?? '出错了'}` : ''
+    node.status === 'running'
+      ? `⏳ ${node.progress ?? '生成中…'}`
+      : node.status === 'error'
+        ? `✕ ${node.error ?? '出错了'}`
+        : ''
   const statusColor = node.status === 'error' ? '#ff6b6b' : '#f0a651'
 
   return (
@@ -169,7 +369,7 @@ export function GenNode({ node, selected }: NodeProps) {
         shadowOpacity={0.4}
       />
       <Text
-        text={`✦ AI 生成 · ${node.mode === 'text' ? '文本' : '图像'}`}
+        text={`✦ AI 生成 · ${MODE_LABEL[node.mode ?? 'image'] ?? '图像'}`}
         x={12}
         y={10}
         fill={ACCENT}

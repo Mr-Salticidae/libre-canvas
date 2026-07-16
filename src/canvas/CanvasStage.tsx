@@ -5,8 +5,8 @@ import type { KonvaEventObject } from 'konva/lib/Node'
 import { useStore } from '../store'
 import { useUI } from '../ui'
 import { uid } from '../types'
-import { fileToDataURL, fitSize, loadImage } from '../helpers'
-import { GenNode, ImageNode, TextNode } from './nodes'
+import { importFilesToCanvas } from '../importFiles'
+import { AudioNode, GenNode, ImageNode, TextNode, VideoNode } from './nodes'
 
 export function createGeneratorNode(x: number, y: number) {
   return {
@@ -42,6 +42,13 @@ export function CanvasStage() {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // dev 调试口：控制台可查 stage 与 store
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      ;(window as unknown as Record<string, unknown>).__lc = { stage: stageRef, useStore, useUI }
+    }
+  }, [])
+
   const onWheel = (e: KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
     const stage = stageRef.current
@@ -73,20 +80,13 @@ export function CanvasStage() {
     setSelection([node.id])
   }
 
-  const onDrop = async (e: React.DragEvent) => {
+  const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+    const files = Array.from(e.dataTransfer.files)
     if (files.length === 0) return
-    let offset = 0
-    for (const file of files) {
-      const src = await fileToDataURL(file)
-      const img = await loadImage(src)
-      const { width, height } = fitSize(img.naturalWidth, img.naturalHeight)
-      const x = (e.clientX - camera.x) / camera.scale + offset
-      const y = (e.clientY - camera.y) / camera.scale + offset
-      addNode({ id: uid(), type: 'image', x, y, width, height, src })
-      offset += 32
-    }
+    const x = (e.clientX - camera.x) / camera.scale
+    const y = (e.clientY - camera.y) / camera.scale
+    void importFilesToCanvas(files, { x, y })
   }
 
   const editingNode = editingId ? nodes[editingId] : null
@@ -142,6 +142,8 @@ export function CanvasStage() {
           {nodeList.map((node) => {
             const selected = selection.includes(node.id)
             if (node.type === 'image') return <ImageNode key={node.id} node={node} selected={selected} />
+            if (node.type === 'video') return <VideoNode key={node.id} node={node} selected={selected} />
+            if (node.type === 'audio') return <AudioNode key={node.id} node={node} selected={selected} />
             if (node.type === 'text') return <TextNode key={node.id} node={node} selected={selected} />
             return <GenNode key={node.id} node={node} selected={selected} />
           })}

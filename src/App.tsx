@@ -11,9 +11,10 @@ export default function App() {
   useEffect(() => {
     if (booted) return
     booted = true
-    const doc = loadDocFromStorage()
-    if (doc) useStore.setState({ nodes: doc.nodes ?? {}, edges: doc.edges ?? [] })
-    setupAutosave()
+    void loadDocFromStorage().then((doc) => {
+      if (doc) useStore.setState({ nodes: doc.nodes ?? {}, edges: doc.edges ?? [] })
+      setupAutosave()
+    })
   }, [])
 
   useEffect(() => {

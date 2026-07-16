@@ -1,4 +1,6 @@
-export type NodeType = 'image' | 'text' | 'generator'
+export type NodeType = 'image' | 'text' | 'generator' | 'video' | 'audio'
+
+export type GenMode = 'image' | 'text' | 'video' | 'audio'
 
 export interface CanvasNode {
   id: string
@@ -7,17 +9,23 @@ export interface CanvasNode {
   y: number
   width: number
   height: number
-  /** image 节点：图片源（dataURL 或 URL） */
+  /** image / video / audio 节点：媒体源（dataURL 或 URL） */
   src?: string
   /** text 节点：文本内容 */
   text?: string
+  /** 媒体节点：显示名（如上传文件名） */
+  name?: string
   /** generator 节点 */
   prompt?: string
   providerId?: string
   model?: string
-  mode?: 'image' | 'text'
+  mode?: GenMode
+  /** audio 生成：TTS 音色 */
+  voice?: string
   status?: 'idle' | 'running' | 'error'
   error?: string
+  /** running 时的进度提示（如视频任务轮询状态） */
+  progress?: string
 }
 
 /** 轻连线：记录生成血缘（生成节点 → 产物） */

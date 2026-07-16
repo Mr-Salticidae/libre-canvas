@@ -1,9 +1,19 @@
 import { useStore } from '../store'
 import { useProviders } from '../providers'
 import { useUI } from '../ui'
-import { uid } from '../types'
-import { generateImage, generateText } from '../api/openai'
-import { fitSize, loadImage } from '../helpers'
+import { uid, type GenMode } from '../types'
+import { generateImage, generateSpeech, generateText, generateVideo } from '../api/openai'
+import { fitSize, loadImage, loadVideoMeta } from '../helpers'
+import { MODE_LABEL } from '../canvas/nodes'
+
+const MODES: GenMode[] = ['image', 'text', 'video', 'audio']
+
+const MODEL_PLACEHOLDER: Record<GenMode, string> = {
+  image: '如 gpt-image-1',
+  text: '如 gpt-4o-mini / deepseek-chat',
+  video: '如 sora-2',
+  audio: '如 gpt-4o-mini-tts / tts-1',
+}
 
 /** 右侧属性面板：选中单个生成节点时出现 */
 export function Inspector() {
@@ -35,18 +45,32 @@ export function Inspector() {
       updateNode(node.id, { status: 'error', error: '请先填写提示词' })
       return
     }
-    updateNode(node.id, { status: 'running', error: undefined })
+    updateNode(node.id, { status: 'running', error: undefined, progress: undefined })
+    const outPos = { x: node.x + node.width + 80, y: node.y }
     try {
       if (node.mode === 'text') {
         const text = await generateText(provider, model, prompt)
+        const out = { id: uid(), type: 'text' as const, ...outPos, width: 360, height: 120, text }
+        addNode(out, { history: false })
+        addEdge({ id: uid(), from: node.id, to: out.id })
+      } else if (node.mode === 'video') {
+        const src = await generateVideo(provider, model, prompt, (msg) =>
+          updateNode(node.id, { progress: msg }),
+        )
+        const { width, height } = await loadVideoMeta(src)
+        const out = { id: uid(), type: 'video' as const, ...outPos, width, height, src, name: prompt.slice(0, 30) }
+        addNode(out, { history: false })
+        addEdge({ id: uid(), from: node.id, to: out.id })
+      } else if (node.mode === 'audio') {
+        const src = await generateSpeech(provider, model, prompt, node.voice ?? 'alloy')
         const out = {
           id: uid(),
-          type: 'text' as const,
-          x: node.x + node.width + 80,
-          y: node.y,
-          width: 360,
-          height: 120,
-          text,
+          type: 'audio' as const,
+          ...outPos,
+          width: 280,
+          height: 84,
+          src,
+          name: prompt.slice(0, 30),
         }
         addNode(out, { history: false })
         addEdge({ id: uid(), from: node.id, to: out.id })
@@ -54,13 +78,17 @@ export function Inspector() {
         const src = await generateImage(provider, model, prompt)
         const img = await loadImage(src)
         const { width, height } = fitSize(img.naturalWidth, img.naturalHeight)
-        const out = { id: uid(), type: 'image' as const, x: node.x + node.width + 80, y: node.y, width, height, src }
+        const out = { id: uid(), type: 'image' as const, ...outPos, width, height, src }
         addNode(out, { history: false })
         addEdge({ id: uid(), from: node.id, to: out.id })
       }
-      updateNode(node.id, { status: 'idle' })
+      updateNode(node.id, { status: 'idle', progress: undefined })
     } catch (e) {
-      updateNode(node.id, { status: 'error', error: e instanceof Error ? e.message : String(e) })
+      updateNode(node.id, {
+        status: 'error',
+        progress: undefined,
+        error: e instanceof Error ? e.message : String(e),
+      })
     }
   }
 
@@ -70,18 +98,15 @@ export function Inspector() {
 
       <label>生成类型</label>
       <div className="seg">
-        <button
-          className={node.mode !== 'text' ? 'active' : ''}
-          onClick={() => updateNode(node.id, { mode: 'image' })}
-        >
-          图像
-        </button>
-        <button
-          className={node.mode === 'text' ? 'active' : ''}
-          onClick={() => updateNode(node.id, { mode: 'text' })}
-        >
-          文本
-        </button>
+        {MODES.map((m) => (
+          <button
+            key={m}
+            className={(node.mode ?? 'image') === m ? 'active' : ''}
+            onClick={() => updateNode(node.id, { mode: m })}
+          >
+            {MODE_LABEL[m]}
+          </button>
+        ))}
       </div>
 
       <label>提供商</label>
@@ -106,7 +131,7 @@ export function Inspector() {
       <input
         list={`models-${provider?.id ?? 'none'}`}
         value={node.model ?? ''}
-        placeholder="如 gpt-image-1 / deepseek-chat"
+        placeholder={MODEL_PLACEHOLDER[node.mode ?? 'image']}
         onChange={(e) => updateNode(node.id, { model: e.target.value })}
       />
       {provider && (
@@ -117,11 +142,22 @@ export function Inspector() {
         </datalist>
       )}
 
-      <label>提示词</label>
+      {node.mode === 'audio' && (
+        <>
+          <label>音色（voice）</label>
+          <input
+            value={node.voice ?? ''}
+            placeholder="alloy（默认）/ nova / echo …"
+            onChange={(e) => updateNode(node.id, { voice: e.target.value })}
+          />
+        </>
+      )}
+
+      <label>{node.mode === 'audio' ? '朗读文本' : '提示词'}</label>
       <textarea
         rows={7}
         value={node.prompt ?? ''}
-        placeholder="描述你想生成的内容…"
+        placeholder={node.mode === 'audio' ? '输入要转成语音的文字…' : '描述你想生成的内容…'}
         onChange={(e) => updateNode(node.id, { prompt: e.target.value })}
       />
 
