@@ -1,0 +1,27 @@
+{
+  "name": "libre-canvas",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "开源免费的 BYOK AI 画布 —— 自己的 key，自己的画布",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "konva": "^9.3.20",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-konva": "^19.0.7",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.5"
+  }
+}

@@ -1,0 +1,293 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  background: #131318;
+  color: #e6e6f0;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  background: #26262f;
+  color: #e6e6f0;
+  border: 1px solid #3a3a4a;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+button:hover {
+  background: #32323e;
+}
+
+button.primary {
+  background: #7c5cff;
+  border-color: #7c5cff;
+  color: #fff;
+}
+
+button.primary:hover {
+  background: #8d70ff;
+}
+
+button.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: #7c5cff;
+  text-align: left;
+  padding: 4px 0;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  background: #17171f;
+  color: #e6e6f0;
+  border: 1px solid #3a3a4a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  width: 100%;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #7c5cff;
+}
+
+/* ---------- 顶部工具栏 ---------- */
+.toolbar {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 30, 40, 0.92);
+  border: 1px solid #3a3a4a;
+  border-radius: 10px;
+  padding: 8px 12px;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+
+.toolbar .brand {
+  font-weight: 700;
+  color: #7c5cff;
+  margin-right: 8px;
+  font-size: 14px;
+}
+
+.toolbar .divider {
+  width: 1px;
+  height: 18px;
+  background: #3a3a4a;
+  margin: 0 4px;
+}
+
+.toolbar .zoom {
+  font-size: 12px;
+  color: #8888a0;
+  min-width: 42px;
+  text-align: right;
+}
+
+/* ---------- 右侧属性面板 ---------- */
+.inspector {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  width: 300px;
+  max-height: calc(100vh - 28px);
+  overflow-y: auto;
+  background: rgba(30, 30, 40, 0.95);
+  border: 1px solid #3a3a4a;
+  border-radius: 10px;
+  padding: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  backdrop-filter: blur(8px);
+}
+
+.inspector h3 {
+  font-size: 14px;
+  color: #7c5cff;
+  margin-bottom: 4px;
+}
+
+.inspector label {
+  font-size: 12px;
+  color: #8888a0;
+  margin-top: 4px;
+}
+
+.inspector textarea {
+  resize: vertical;
+}
+
+.inspector .seg {
+  display: flex;
+  gap: 0;
+}
+
+.inspector .seg button {
+  flex: 1;
+  border-radius: 0;
+}
+
+.inspector .seg button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.inspector .seg button:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.inspector .seg button.active {
+  background: #7c5cff;
+  border-color: #7c5cff;
+  color: #fff;
+}
+
+/* ---------- 设置弹窗 ---------- */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+
+.modal {
+  position: relative;
+  width: 560px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: #1c1c26;
+  border: 1px solid #3a3a4a;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.modal h2 {
+  font-size: 17px;
+  margin-bottom: 12px;
+}
+
+.modal .privacy {
+  font-size: 12px;
+  color: #9d9db4;
+  background: #22222e;
+  border: 1px solid #34344a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: #8888a0;
+}
+
+.provider-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.provider-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #22222e;
+  border: 1px solid #34344a;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.provider-list li .sub {
+  display: block;
+  font-size: 11px;
+  color: #8888a0;
+  margin-top: 2px;
+}
+
+.provider-list li button {
+  margin-left: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.provider-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.provider-form label {
+  font-size: 12px;
+  color: #8888a0;
+  margin-top: 6px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ---------- 通用 ---------- */
+.error {
+  color: #ff6b6b;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.ok {
+  color: #5dd39e;
+  font-size: 12px;
+}
+
+.hint {
+  color: #8888a0;
+  font-size: 12px;
+  line-height: 1.5;
+}
