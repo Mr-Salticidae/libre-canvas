@@ -4,6 +4,7 @@ import { useUI, viewportCenter } from '../ui'
 import { uid, type Doc } from '../types'
 import { download } from '../helpers'
 import { importFilesToCanvas } from '../importFiles'
+import { useTheme } from '../theme'
 import { createGeneratorNode } from '../canvas/CanvasStage'
 
 export function Toolbar() {
@@ -62,9 +63,15 @@ export function Toolbar() {
     }
   }
 
+  const theme = useTheme((s) => s.theme)
+  const toggleTheme = useTheme((s) => s.toggle)
+
   return (
     <div className="toolbar">
-      <span className="brand">LibreCanvas</span>
+      <span className="brand">
+        自由画布
+        <small>Libre Canvas</small>
+      </span>
       <button onClick={addGenerator} title="添加 AI 生成节点（也可双击画布）">✦ 生成</button>
       <button onClick={addText} title="添加文本卡片">T 文本</button>
       <button onClick={() => imageInput.current?.click()} title="上传图片/视频/音频/文本文件（也可直接拖入画布）">⤒ 上传</button>
@@ -75,6 +82,7 @@ export function Toolbar() {
       <button onClick={exportJSON} title="导出画布为 JSON">导出</button>
       <button onClick={() => jsonInput.current?.click()} title="导入画布 JSON">导入</button>
       <button onClick={() => setSettingsOpen(true)} title="模型与 API Key 设置">⚙ 设置</button>
+      <button onClick={toggleTheme} title="昼夜切换">{theme === 'dark' ? '☀' : '☾'}</button>
       <span className="zoom">{Math.round(camera.scale * 100)}%</span>
 
       <input

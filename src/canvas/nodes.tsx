@@ -5,10 +5,7 @@ import type { KonvaEventObject } from 'konva/lib/Node'
 import type { CanvasNode } from '../types'
 import { useStore } from '../store'
 import { useUI } from '../ui'
-
-const ACCENT = '#7c5cff'
-const CARD_BG = '#1e1e28'
-const CARD_BORDER = '#34344a'
+import { CANVAS_FONT, usePalette } from '../theme'
 
 interface NodeProps {
   node: CanvasNode
@@ -57,6 +54,7 @@ function useImage(src?: string) {
 }
 
 export function ImageNode({ node, selected }: NodeProps) {
+  const pal = usePalette()
   const img = useImage(node.src)
   const h = useNodeHandlers(node)
   const [hovered, setHovered] = useState(false)
@@ -74,16 +72,17 @@ export function ImageNode({ node, selected }: NodeProps) {
       <Rect
         width={node.width}
         height={node.height}
-        fill={CARD_BG}
-        cornerRadius={8}
-        stroke={selected ? ACCENT : CARD_BORDER}
-        strokeWidth={selected ? 2.5 : 1}
-        shadowColor="#000"
-        shadowBlur={12}
-        shadowOpacity={0.4}
+        fill={pal.paper2}
+        cornerRadius={10}
+        stroke={selected ? pal.accent : pal.line}
+        strokeWidth={selected ? 2 : 1}
+        shadowColor={pal.shadow}
+        shadowBlur={16}
+        shadowOffsetY={6}
+        shadowOpacity={pal.shadowOpacity}
       />
       {img ? (
-        <KImage image={img} width={node.width} height={node.height} cornerRadius={8} />
+        <KImage image={img} width={node.width} height={node.height} cornerRadius={10} />
       ) : (
         <Text
           text="加载图片…"
@@ -91,17 +90,18 @@ export function ImageNode({ node, selected }: NodeProps) {
           height={node.height}
           align="center"
           verticalAlign="middle"
-          fill="#8888a0"
+          fill={pal.inkSoft}
           fontSize={13}
+          fontFamily={CANVAS_FONT}
         />
       )}
       {selected && (
         <Rect
           width={node.width}
           height={node.height}
-          cornerRadius={8}
-          stroke={ACCENT}
-          strokeWidth={2.5}
+          cornerRadius={10}
+          stroke={pal.accent}
+          strokeWidth={2}
           listening={false}
         />
       )}
@@ -110,8 +110,8 @@ export function ImageNode({ node, selected }: NodeProps) {
           x={node.width}
           y={node.height / 2}
           radius={8}
-          fill={ACCENT}
-          stroke="#fff"
+          fill={pal.accent}
+          stroke={pal.paper2}
           strokeWidth={1.5}
           onMouseDown={(e) => {
             // 拦截住，别触发卡片拖拽/画布平移；由 CanvasStage 接管连线
@@ -130,6 +130,7 @@ export function ImageNode({ node, selected }: NodeProps) {
 
 /** 播放/暂停小圆钮（视频、音频节点共用） */
 function PlayButton({ x, y, playing, onToggle }: { x: number; y: number; playing: boolean; onToggle: () => void }) {
+  const pal = usePalette()
   return (
     <Group
       x={x}
@@ -142,7 +143,7 @@ function PlayButton({ x, y, playing, onToggle }: { x: number; y: number; playing
         e.cancelBubble = true
       }}
     >
-      <Circle radius={16} fill="rgba(20,20,28,0.75)" stroke={ACCENT} strokeWidth={1.5} />
+      <Circle radius={16} fill="rgba(16, 15, 22, 0.72)" stroke={pal.accent} strokeWidth={1.5} />
       <Text
         text={playing ? '❚❚' : '▶'}
         x={-16}
@@ -159,6 +160,7 @@ function PlayButton({ x, y, playing, onToggle }: { x: number; y: number; playing
 }
 
 export function VideoNode({ node, selected }: NodeProps) {
+  const pal = usePalette()
   const h = useNodeHandlers(node)
   const updateNode = useStore((s) => s.updateNode)
   const [playing, setPlaying] = useState(false)
@@ -231,15 +233,16 @@ export function VideoNode({ node, selected }: NodeProps) {
         width={node.width}
         height={node.height}
         fill="#000"
-        cornerRadius={8}
-        stroke={selected ? ACCENT : CARD_BORDER}
-        strokeWidth={selected ? 2.5 : 1}
-        shadowColor="#000"
-        shadowBlur={12}
-        shadowOpacity={0.4}
+        cornerRadius={10}
+        stroke={selected ? pal.accent : pal.line}
+        strokeWidth={selected ? 2 : 1}
+        shadowColor={pal.shadow}
+        shadowBlur={16}
+        shadowOffsetY={6}
+        shadowOpacity={pal.shadowOpacity}
       />
       {video && ready ? (
-        <KImage image={video} width={node.width} height={node.height} cornerRadius={8} />
+        <KImage image={video} width={node.width} height={node.height} cornerRadius={10} />
       ) : (
         <Text
           text="加载视频…"
@@ -247,8 +250,9 @@ export function VideoNode({ node, selected }: NodeProps) {
           height={node.height}
           align="center"
           verticalAlign="middle"
-          fill="#8888a0"
+          fill={pal.inkSoft}
           fontSize={13}
+          fontFamily={CANVAS_FONT}
         />
       )}
       <PlayButton x={26} y={node.height - 26} playing={playing} onToggle={toggle} />
@@ -257,6 +261,7 @@ export function VideoNode({ node, selected }: NodeProps) {
 }
 
 export function AudioNode({ node, selected }: NodeProps) {
+  const pal = usePalette()
   const h = useNodeHandlers(node)
   const [playing, setPlaying] = useState(false)
 
@@ -293,24 +298,26 @@ export function AudioNode({ node, selected }: NodeProps) {
       <Rect
         width={node.width}
         height={node.height}
-        fill={CARD_BG}
-        cornerRadius={8}
-        stroke={selected ? ACCENT : CARD_BORDER}
-        strokeWidth={selected ? 2.5 : 1}
-        shadowColor="#000"
-        shadowBlur={12}
-        shadowOpacity={0.4}
+        fill={pal.paper2}
+        cornerRadius={10}
+        stroke={selected ? pal.accent : pal.line}
+        strokeWidth={selected ? 2 : 1}
+        shadowColor={pal.shadow}
+        shadowBlur={16}
+        shadowOffsetY={6}
+        shadowOpacity={pal.shadowOpacity}
       />
-      <Text text="🔊 音频" x={12} y={12} fill={ACCENT} fontSize={13} fontStyle="bold" />
+      <Text text="◉ 音频" x={14} y={13} fill={pal.accent} fontSize={12} fontStyle="bold" fontFamily={CANVAS_FONT} />
       <Text
         text={node.name || node.text || '未命名音频'}
-        x={12}
-        y={36}
-        width={node.width - 70}
-        fill="#c8c8d8"
+        x={14}
+        y={37}
+        width={node.width - 72}
+        fill={pal.ink}
         fontSize={12}
         ellipsis
         wrap="none"
+        fontFamily={CANVAS_FONT}
       />
       <PlayButton x={node.width - 32} y={node.height / 2} playing={playing} onToggle={toggle} />
     </Group>
@@ -318,6 +325,7 @@ export function AudioNode({ node, selected }: NodeProps) {
 }
 
 export function TextNode({ node, selected }: NodeProps) {
+  const pal = usePalette()
   const h = useNodeHandlers(node)
   const updateNode = useStore((s) => s.updateNode)
   const setEditingId = useUI((s) => s.setEditingId)
@@ -327,7 +335,7 @@ export function TextNode({ node, selected }: NodeProps) {
   useEffect(() => {
     const t = textRef.current
     if (!t) return
-    const measured = Math.max(48, Math.round(t.height() + 24))
+    const measured = Math.max(48, Math.round(t.height() + 26))
     if (Math.abs(measured - node.height) > 2) updateNode(node.id, { height: measured })
   }, [node.text, node.width, node.height, node.id, updateNode])
 
@@ -345,23 +353,25 @@ export function TextNode({ node, selected }: NodeProps) {
       <Rect
         width={node.width}
         height={node.height}
-        fill={CARD_BG}
-        cornerRadius={8}
-        stroke={selected ? ACCENT : CARD_BORDER}
-        strokeWidth={selected ? 2.5 : 1}
-        shadowColor="#000"
-        shadowBlur={12}
-        shadowOpacity={0.4}
+        fill={pal.paper2}
+        cornerRadius={10}
+        stroke={selected ? pal.accent : pal.line}
+        strokeWidth={selected ? 2 : 1}
+        shadowColor={pal.shadow}
+        shadowBlur={16}
+        shadowOffsetY={6}
+        shadowOpacity={pal.shadowOpacity}
       />
       <Text
         ref={textRef}
         text={node.text || '双击编辑文本'}
-        x={12}
-        y={12}
-        width={node.width - 24}
-        fill={node.text ? '#e6e6f0' : '#8888a0'}
+        x={13}
+        y={13}
+        width={node.width - 26}
+        fill={node.text ? pal.ink : pal.inkSoft}
         fontSize={14}
-        lineHeight={1.5}
+        lineHeight={1.6}
+        fontFamily={CANVAS_FONT}
       />
     </Group>
   )
@@ -375,6 +385,7 @@ export const MODE_LABEL: Record<string, string> = {
 }
 
 export function GenNode({ node, selected }: NodeProps) {
+  const pal = usePalette()
   const h = useNodeHandlers(node)
   const statusText =
     node.status === 'running'
@@ -382,50 +393,57 @@ export function GenNode({ node, selected }: NodeProps) {
       : node.status === 'error'
         ? `✕ ${node.error ?? '出错了'}`
         : ''
-  const statusColor = node.status === 'error' ? '#ff6b6b' : '#f0a651'
+  const statusColor = node.status === 'error' ? pal.danger : pal.warn
 
   return (
     <Group x={node.x} y={node.y} draggable {...h}>
       <Rect
         width={node.width}
         height={node.height}
-        fill="#232030"
-        cornerRadius={10}
-        stroke={selected ? ACCENT : '#453d66'}
-        strokeWidth={selected ? 2.5 : 1.5}
-        shadowColor="#000"
-        shadowBlur={12}
-        shadowOpacity={0.4}
+        fill={pal.accentSoft}
+        cornerRadius={12}
+        stroke={selected ? pal.accent : pal.accent + '55'}
+        strokeWidth={selected ? 2 : 1.2}
+        shadowColor={pal.shadow}
+        shadowBlur={16}
+        shadowOffsetY={6}
+        shadowOpacity={pal.shadowOpacity}
       />
+      {/* 左侧一道蛛丝色边光，呼应主站卡片 hover 语汇 */}
+      <Rect x={0} y={10} width={3} height={node.height - 20} cornerRadius={2} fill={pal.accent} listening={false} />
       <Text
         text={`✦ AI 生成 · ${MODE_LABEL[node.mode ?? 'image'] ?? '图像'}`}
-        x={12}
-        y={10}
-        fill={ACCENT}
-        fontSize={13}
+        x={16}
+        y={12}
+        fill={pal.accent}
+        fontSize={12.5}
         fontStyle="bold"
+        letterSpacing={1}
+        fontFamily={CANVAS_FONT}
       />
       <Text
         text={node.prompt ? node.prompt.slice(0, 90) + (node.prompt.length > 90 ? '…' : '') : '选中后在右侧面板填写提示词'}
-        x={12}
-        y={34}
-        width={node.width - 24}
-        height={node.height - 34 - (statusText ? 26 : 12)}
-        fill={node.prompt ? '#c8c8d8' : '#8888a0'}
+        x={16}
+        y={38}
+        width={node.width - 30}
+        height={node.height - 38 - (statusText ? 28 : 14)}
+        fill={node.prompt ? pal.ink : pal.inkSoft}
         fontSize={12}
-        lineHeight={1.45}
+        lineHeight={1.55}
         ellipsis
+        fontFamily={CANVAS_FONT}
       />
       {statusText && (
         <Text
           text={statusText.slice(0, 60)}
-          x={12}
-          y={node.height - 22}
-          width={node.width - 24}
+          x={16}
+          y={node.height - 24}
+          width={node.width - 30}
           fill={statusColor}
           fontSize={11}
           ellipsis
           wrap="none"
+          fontFamily={CANVAS_FONT}
         />
       )}
     </Group>

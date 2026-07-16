@@ -1,7 +1,7 @@
 {
   "name": "libre-canvas",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "开源免费的 BYOK AI 画布 —— 自己的 key，自己的画布",
   "license": "MIT",

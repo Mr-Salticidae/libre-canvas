@@ -6,6 +6,7 @@ import { useStore } from '../store'
 import { useUI } from '../ui'
 import { uid } from '../types'
 import { importFilesToCanvas } from '../importFiles'
+import { usePalette } from '../theme'
 import { AudioNode, GenNode, ImageNode, TextNode, VideoNode } from './nodes'
 
 export function createGeneratorNode(x: number, y: number) {
@@ -23,6 +24,7 @@ export function createGeneratorNode(x: number, y: number) {
 }
 
 export function CanvasStage() {
+  const pal = usePalette()
   const stageRef = useRef<Konva.Stage>(null)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
   const nodes = useStore((s) => s.nodes)
@@ -135,11 +137,18 @@ export function CanvasStage() {
   const nodeList = Object.values(nodes)
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, background: '#131318' }}
-      onDrop={onDrop}
-      onDragOver={(e) => e.preventDefault()}
-    >
+    <div className="canvas-root" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+      {nodeList.length === 0 && (
+        <div className="canvas-empty">
+          <p className="kicker">Libre Canvas · BYOK</p>
+          <h1>自由画布</h1>
+          <p>
+            把图片、视频、音频、文字拖进来，或<kbd>双击</kbd>画布创建生成节点。
+            <br />
+            自己的 key，自己的画布——一切都只发生在你的浏览器里。
+          </p>
+        </div>
+      )}
       <Stage
         ref={stageRef}
         width={size.w}
@@ -177,10 +186,10 @@ export function CanvasStage() {
                 key={edge.id}
                 points={[x1, y1, x1 + dx, y1, x2 - dx, y2, x2, y2]}
                 bezier
-                stroke={isInput ? '#7c5cff' : '#5a5a78'}
+                stroke={isInput ? pal.accent : pal.inkSoft}
                 strokeWidth={isInput ? 2 : 1.5}
                 dash={isInput ? undefined : [6, 4]}
-                opacity={isInput ? 0.9 : 1}
+                opacity={isInput ? 0.85 : 0.55}
                 listening={false}
               />
             )
@@ -196,7 +205,7 @@ export function CanvasStage() {
                 <Line
                   points={[x1, y1, x1 + dx, y1, connecting.x - dx, connecting.y, connecting.x, connecting.y]}
                   bezier
-                  stroke="#7c5cff"
+                  stroke={pal.accent}
                   strokeWidth={2}
                   dash={[4, 4]}
                   listening={false}
@@ -224,13 +233,13 @@ export function CanvasStage() {
             top: editingNode.y * camera.scale + camera.y,
             width: editingNode.width * camera.scale,
             minHeight: editingNode.height * camera.scale,
-            background: '#1e1e28',
-            color: '#e6e6f0',
-            border: '2px solid #7c5cff',
-            borderRadius: 8,
-            padding: 10,
+            background: 'var(--paper-2)',
+            color: 'var(--ink)',
+            border: '2px solid var(--accent)',
+            borderRadius: 10,
+            padding: 12,
             fontSize: 14 * camera.scale,
-            lineHeight: 1.5,
+            lineHeight: 1.6,
             resize: 'none',
             outline: 'none',
             zIndex: 20,
