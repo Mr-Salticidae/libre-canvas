@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Layer, Line, Stage } from 'react-konva'
+import { Layer, Line, Rect, Stage } from 'react-konva'
 import type Konva from 'konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
 import { useStore } from '../store'
@@ -39,6 +39,30 @@ export function CanvasStage() {
   const setEditingId = useUI((s) => s.setEditingId)
   const connecting = useUI((s) => s.connecting)
   const setConnecting = useUI((s) => s.setConnecting)
+  const [spaceDown, setSpaceDown] = useState(false)
+  const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
+  const justMarqueed = useRef(false)
+
+  // 空格按住 = 平移模式
+  useEffect(() => {
+    const isTyping = (t: EventTarget | null) =>
+      t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || (t as HTMLElement)?.isContentEditable
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !isTyping(e.target)) {
+        e.preventDefault()
+        setSpaceDown(true)
+      }
+    }
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setSpaceDown(false)
+    }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+    }
+  }, [])
 
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
@@ -69,6 +93,11 @@ export function CanvasStage() {
   }
 
   const onStageClick = (e: KonvaEventObject<MouseEvent>) => {
+    // 框选结束时 Konva 仍会补发一次 click，别让它清掉刚框中的选择
+    if (justMarqueed.current) {
+      justMarqueed.current = false
+      return
+    }
     if (e.target === stageRef.current) setSelection([])
   }
 
@@ -91,13 +120,39 @@ export function CanvasStage() {
     return { x: (p.x - camera.x) / camera.scale, y: (p.y - camera.y) / camera.scale }
   }
 
+  const onStageMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+    if (e.target !== stageRef.current || spaceDown || connecting || e.evt.button !== 0) return
+    const w = pointerWorld()
+    if (w) setMarquee({ x1: w.x, y1: w.y, x2: w.x, y2: w.y })
+  }
+
   const onStageMouseMove = () => {
+    if (marquee) {
+      const w = pointerWorld()
+      if (w) setMarquee({ ...marquee, x2: w.x, y2: w.y })
+      return
+    }
     if (!connecting) return
     const w = pointerWorld()
     if (w) setConnecting({ ...connecting, x: w.x, y: w.y })
   }
 
   const onStageMouseUp = () => {
+    if (marquee) {
+      const x = Math.min(marquee.x1, marquee.x2)
+      const y = Math.min(marquee.y1, marquee.y2)
+      const w = Math.abs(marquee.x2 - marquee.x1)
+      const h = Math.abs(marquee.y2 - marquee.y1)
+      if (w > 4 || h > 4) {
+        const hit = Object.values(nodes)
+          .filter((n) => n.x < x + w && n.x + n.width > x && n.y < y + h && n.y + n.height > y)
+          .map((n) => n.id)
+        setSelection(hit)
+        justMarqueed.current = true
+      }
+      setMarquee(null)
+      return
+    }
     if (!connecting) return
     const w = pointerWorld()
     if (w) {
@@ -137,7 +192,12 @@ export function CanvasStage() {
   const nodeList = Object.values(nodes)
 
   return (
-    <div className="canvas-root" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+    <div
+      className="canvas-root"
+      style={{ cursor: spaceDown ? 'grab' : undefined }}
+      onDrop={onDrop}
+      onDragOver={(e) => e.preventDefault()}
+    >
       {nodeList.length === 0 && (
         <div className="canvas-empty">
           <p className="kicker">Libre Canvas · BYOK</p>
@@ -157,10 +217,11 @@ export function CanvasStage() {
         y={camera.y}
         scaleX={camera.scale}
         scaleY={camera.scale}
-        draggable={!connecting}
+        draggable={spaceDown && !connecting}
         onWheel={onWheel}
         onClick={onStageClick}
         onDblClick={onStageDblClick}
+        onMouseDown={onStageMouseDown}
         onMouseMove={onStageMouseMove}
         onMouseUp={onStageMouseUp}
         onDragEnd={(e) => {
@@ -194,6 +255,19 @@ export function CanvasStage() {
               />
             )
           })}
+          {marquee && (
+            <Rect
+              x={Math.min(marquee.x1, marquee.x2)}
+              y={Math.min(marquee.y1, marquee.y2)}
+              width={Math.abs(marquee.x2 - marquee.x1)}
+              height={Math.abs(marquee.y2 - marquee.y1)}
+              fill={pal.accent + '1a'}
+              stroke={pal.accent}
+              strokeWidth={1}
+              dash={[4, 4]}
+              listening={false}
+            />
+          )}
           {connecting &&
             (() => {
               const from = nodes[connecting.fromId]

@@ -35,3 +35,13 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
     tx.onerror = () => reject(tx.error)
   })
 }
+
+export async function idbDel(key: string): Promise<void> {
+  const d = await db()
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(STORE, 'readwrite')
+    tx.objectStore(STORE).delete(key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}

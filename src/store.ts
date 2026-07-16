@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { CanvasNode, Doc, Edge } from './types'
-import { idbGet, idbSet } from './storage'
+import { idbGet } from './storage'
 
 const DOC_KEY = 'librecanvas.doc.v1'
 
@@ -16,9 +16,14 @@ interface StoreState extends Doc {
   addEdge: (edge: Edge) => void
   removeEdge: (id: string) => void
   setSelection: (ids: string[]) => void
+  moveNodes: (ids: string[], dx: number, dy: number) => void
+  groupSelected: () => void
+  ungroupSelected: () => void
   undo: () => void
   redo: () => void
   loadDoc: (doc: Doc) => void
+  /** 项目切换：整体替换文档并清空历史（不产生撤销记录） */
+  resetDoc: (doc: Doc) => void
 }
 
 function cloneDoc(s: Doc): Doc {
@@ -73,6 +78,47 @@ export const useStore = create<StoreState>((set, get) => ({
 
   setSelection: (ids) => set({ selection: ids }),
 
+  moveNodes: (ids, dx, dy) => {
+    if (ids.length === 0 || (dx === 0 && dy === 0)) return
+    set((s) => {
+      const nodes = { ...s.nodes }
+      for (const id of ids) {
+        const n = nodes[id]
+        if (n) nodes[id] = { ...n, x: n.x + dx, y: n.y + dy }
+      }
+      return { nodes }
+    })
+  },
+
+  groupSelected: () => {
+    const s = get()
+    if (s.selection.length < 2) return
+    s.snapshot()
+    const groupId = s.selection.slice().sort().join('-').slice(0, 24) + '-g'
+    set((st) => {
+      const nodes = { ...st.nodes }
+      for (const id of st.selection) {
+        const n = nodes[id]
+        if (n) nodes[id] = { ...n, groupId }
+      }
+      return { nodes }
+    })
+  },
+
+  ungroupSelected: () => {
+    const s = get()
+    if (s.selection.length === 0) return
+    s.snapshot()
+    set((st) => {
+      const nodes = { ...st.nodes }
+      for (const id of st.selection) {
+        const n = nodes[id]
+        if (n?.groupId) nodes[id] = { ...n, groupId: undefined }
+      }
+      return { nodes }
+    })
+  },
+
   undo: () => {
     const s = get()
     const prev = s.past[s.past.length - 1]
@@ -101,30 +147,21 @@ export const useStore = create<StoreState>((set, get) => ({
     get().snapshot()
     set({ nodes: doc.nodes ?? {}, edges: doc.edges ?? [], selection: [] })
   },
+
+  resetDoc: (doc) => {
+    set({ nodes: doc.nodes ?? {}, edges: doc.edges ?? [], selection: [], past: [], future: [] })
+  },
 }))
 
-export async function loadDocFromStorage(): Promise<Doc | null> {
+/** 读取多画布之前的单画布旧数据（供 projects 首次迁移用） */
+export async function loadLegacyDoc(): Promise<Doc | null> {
   try {
     const doc = await idbGet<Doc>('doc')
     if (doc) return doc
-    // 从旧版 localStorage 迁移一次
     const raw = localStorage.getItem(DOC_KEY)
     if (!raw) return null
     return JSON.parse(raw) as Doc
   } catch {
     return null
   }
-}
-
-let saveTimer: ReturnType<typeof setTimeout> | undefined
-
-export function setupAutosave() {
-  useStore.subscribe((s) => {
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
-      void idbSet('doc', { nodes: s.nodes, edges: s.edges }).catch(() => {
-        // 写入失败（隐私模式等）静默跳过，导出 JSON 仍可用
-      })
-    }, 500)
-  })
 }

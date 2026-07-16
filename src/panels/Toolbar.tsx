@@ -5,6 +5,7 @@ import { uid, type Doc } from '../types'
 import { download } from '../helpers'
 import { importFilesToCanvas } from '../importFiles'
 import { useTheme } from '../theme'
+import { useProjects } from '../projects'
 import { createGeneratorNode } from '../canvas/CanvasStage'
 
 export function Toolbar() {
@@ -49,7 +50,9 @@ export function Toolbar() {
 
   const exportJSON = () => {
     const { nodes, edges } = useStore.getState()
-    download(`librecanvas-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ nodes, edges }, null, 2))
+    const ps = useProjects.getState()
+    const name = ps.projects.find((p) => p.id === ps.currentId)?.name ?? 'librecanvas'
+    download(`${name}-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ nodes, edges }, null, 2))
   }
 
   const importJSON = async (files: FileList | null) => {
@@ -72,6 +75,13 @@ export function Toolbar() {
         自由画布
         <small>Libre Canvas</small>
       </span>
+      <button
+        onClick={() => useUI.getState().setProjectsOpen(!useUI.getState().projectsOpen)}
+        title="画布项目：新建/切换/管理"
+      >
+        ▤ 画布
+      </button>
+      <span className="divider" />
       <button onClick={addGenerator} title="添加 AI 生成节点（也可双击画布）">✦ 生成</button>
       <button onClick={addText} title="添加文本卡片">T 文本</button>
       <button onClick={() => imageInput.current?.click()} title="上传图片/视频/音频/文本文件（也可直接拖入画布）">⤒ 上传</button>

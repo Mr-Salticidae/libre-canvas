@@ -4,7 +4,9 @@ import { Toolbar } from './panels/Toolbar'
 import { Inspector } from './panels/Inspector'
 import { SettingsModal } from './panels/SettingsModal'
 import { MaskEditor } from './panels/MaskEditor'
-import { loadDocFromStorage, setupAutosave, useStore } from './store'
+import { ProjectsPanel } from './panels/ProjectsPanel'
+import { useStore } from './store'
+import { bootProjects, setupProjectAutosave } from './projects'
 import { useUI } from './ui'
 
 let booted = false
@@ -13,9 +15,8 @@ export default function App() {
   useEffect(() => {
     if (booted) return
     booted = true
-    void loadDocFromStorage().then((doc) => {
-      if (doc) useStore.setState({ nodes: doc.nodes ?? {}, edges: doc.edges ?? [] })
-      setupAutosave()
+    void bootProjects().then(() => {
+      setupProjectAutosave()
     })
   }, [])
 
@@ -32,6 +33,18 @@ export default function App() {
       if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection.length > 0) {
         e.preventDefault()
         s.removeNodes(s.selection)
+      } else if (e.key === 'Escape') {
+        s.setSelection([])
+        ui.setProjectsOpen(false)
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault()
+        s.setSelection(Object.keys(s.nodes))
+      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        s.groupSelected()
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        s.ungroupSelected()
       } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         s.undo()
@@ -51,6 +64,7 @@ export default function App() {
     <>
       <CanvasStage />
       <Toolbar />
+      <ProjectsPanel />
       <Inspector />
       <SettingsModal />
       <MaskEditor />

@@ -373,6 +373,147 @@ label {
   color: #fff;
 }
 
+.ref-text {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.76rem;
+  color: var(--ink);
+}
+
+.ref-text button {
+  border: none;
+  padding: 0 4px;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+.prompt-wrap {
+  position: relative;
+}
+
+.at-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 14px 34px -14px rgba(var(--shadow), 0.5);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.at-menu button {
+  border: none;
+  border-radius: 6px;
+  text-align: left;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.at-menu button:hover {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+/* ---------- 画布项目面板 ---------- */
+.projects-panel {
+  position: fixed;
+  top: 72px;
+  left: 14px;
+  width: 280px;
+  background: color-mix(in srgb, var(--paper-2) 94%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  z-index: 12;
+  backdrop-filter: saturate(1.4) blur(10px);
+  box-shadow: 0 14px 34px -18px rgba(var(--shadow), 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.projects-panel h3 {
+  font-family: var(--serif);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.projects-panel ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.projects-panel li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 8px;
+  padding: 2px 4px;
+}
+
+.projects-panel li.current {
+  background: var(--accent-soft);
+}
+
+.projects-panel li.current .p-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.projects-panel .p-name {
+  flex: 1;
+  border: none;
+  text-align: left;
+  padding: 6px 6px;
+  font-size: 0.85rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.projects-panel .p-time {
+  font-size: 0.66rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.projects-panel .p-act {
+  border: none;
+  padding: 4px 5px;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.projects-panel .p-act:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 /* ---------- 弹层 ---------- */
 .modal-mask {
   position: fixed;

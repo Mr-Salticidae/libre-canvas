@@ -24,6 +24,8 @@ export interface CanvasNode {
   voice?: string
   status?: 'idle' | 'running' | 'error'
   error?: string
+  /** 编组 id：同组节点点选任一成员即全组选中 */
+  groupId?: string
   /** running 时的进度提示（如视频任务轮询状态） */
   progress?: string
 }

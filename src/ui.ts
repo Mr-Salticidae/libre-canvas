@@ -27,6 +27,8 @@ interface UIState {
   /** 正在做蒙版重绘的图片节点 id */
   maskEditingId: string | null
   setMaskEditingId: (id: string | null) => void
+  projectsOpen: boolean
+  setProjectsOpen: (open: boolean) => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -40,6 +42,8 @@ export const useUI = create<UIState>((set) => ({
   setConnecting: (connecting) => set({ connecting }),
   maskEditingId: null,
   setMaskEditingId: (maskEditingId) => set({ maskEditingId }),
+  projectsOpen: false,
+  setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
 }))
 
 /** 屏幕坐标 → 世界坐标 */

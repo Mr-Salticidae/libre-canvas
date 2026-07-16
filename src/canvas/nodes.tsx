@@ -12,30 +12,52 @@ interface NodeProps {
   selected: boolean
 }
 
-/** 选择 + 拖拽的公共行为 */
+/** 同组成员一起选中 */
+function expandByGroup(id: string): string[] {
+  const nodes = useStore.getState().nodes
+  const groupId = nodes[id]?.groupId
+  if (!groupId) return [id]
+  return Object.values(nodes)
+    .filter((n) => n.groupId === groupId)
+    .map((n) => n.id)
+}
+
+/** 选择 + 拖拽的公共行为（多选/编组时整体移动） */
 function useNodeHandlers(node: CanvasNode) {
   const setSelection = useStore((s) => s.setSelection)
   const updateNode = useStore((s) => s.updateNode)
+  const moveNodes = useStore((s) => s.moveNodes)
   const snapshot = useStore((s) => s.snapshot)
 
   return {
     onClick: (e: KonvaEventObject<MouseEvent>) => {
       e.cancelBubble = true
       const sel = useStore.getState().selection
+      const ids = expandByGroup(node.id)
       if (e.evt.shiftKey) {
-        setSelection(sel.includes(node.id) ? sel.filter((i) => i !== node.id) : [...sel, node.id])
+        const allIn = ids.every((i) => sel.includes(i))
+        setSelection(allIn ? sel.filter((i) => !ids.includes(i)) : [...new Set([...sel, ...ids])])
       } else {
-        setSelection([node.id])
+        setSelection(ids)
       }
     },
     onDragStart: (e: KonvaEventObject<DragEvent>) => {
       e.cancelBubble = true
       snapshot()
       const sel = useStore.getState().selection
-      if (!sel.includes(node.id)) setSelection([node.id])
+      if (!sel.includes(node.id)) setSelection(expandByGroup(node.id))
     },
     onDragMove: (e: KonvaEventObject<DragEvent>) => {
+      const s = useStore.getState()
+      const cur = s.nodes[node.id]
+      if (!cur) return
+      const dx = e.target.x() - cur.x
+      const dy = e.target.y() - cur.y
       updateNode(node.id, { x: e.target.x(), y: e.target.y() })
+      // 被拖节点在多选之中 → 其余选中节点同步位移
+      if (s.selection.includes(node.id) && s.selection.length > 1) {
+        moveNodes(s.selection.filter((i) => i !== node.id), dx, dy)
+      }
     },
   }
 }
@@ -329,6 +351,8 @@ export function TextNode({ node, selected }: NodeProps) {
   const h = useNodeHandlers(node)
   const updateNode = useStore((s) => s.updateNode)
   const setEditingId = useUI((s) => s.setEditingId)
+  const setConnecting = useUI((s) => s.setConnecting)
+  const [hovered, setHovered] = useState(false)
   const textRef = useRef<Konva.Text>(null)
 
   // 文本渲染后按实际高度回写节点高度，让边框和连线锚点贴合内容
@@ -349,6 +373,8 @@ export function TextNode({ node, selected }: NodeProps) {
         e.cancelBubble = true
         setEditingId(node.id)
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       <Rect
         width={node.width}
@@ -373,6 +399,24 @@ export function TextNode({ node, selected }: NodeProps) {
         lineHeight={1.6}
         fontFamily={CANVAS_FONT}
       />
+      {(hovered || selected) && (
+        <Circle
+          x={node.width}
+          y={node.height / 2}
+          radius={8}
+          fill={pal.accent}
+          stroke={pal.paper2}
+          strokeWidth={1.5}
+          onMouseDown={(e) => {
+            e.cancelBubble = true
+            setConnecting({
+              fromId: node.id,
+              x: node.x + node.width,
+              y: node.y + node.height / 2,
+            })
+          }}
+        />
+      )}
     </Group>
   )
 }
