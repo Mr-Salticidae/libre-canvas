@@ -1,0 +1,48 @@
+# push 到 main 自动构建并部署到香港轻量服务器 canvas.tiaozhuxiansheng.com
+# 需要仓库 secret：HK_SSH_KEY（服务器部署私钥，同 above-the-web）。
+# 未配置 secret 时 CI 会跳过部署步骤并保持绿色，只做构建验证。
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: 检查部署密钥是否已配置
+        id: check
+        run: |
+          if [ -n "${{ secrets.HK_SSH_KEY }}" ]; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::未配置 HK_SSH_KEY secret，跳过部署（仅构建验证）"
+          fi
+
+      - name: Rsync dist 到香港服务器
+        if: steps.check.outputs.has == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.HK_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 43.128.2.172 >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes" dist/ root@43.128.2.172:/var/www/libre-canvas/
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes root@43.128.2.172 'chown -R www-data:www-data /var/www/libre-canvas'
