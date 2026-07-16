@@ -71,6 +71,23 @@ function dataURLToBlob(dataURL: string): Blob {
   return new Blob([arr], { type: mime })
 }
 
+/** dataURL 直接转；远程 URL 先抓成 Blob（可能受对方 CORS 限制） */
+async function srcToBlob(src: string): Promise<Blob> {
+  if (src.startsWith('data:')) return dataURLToBlob(src)
+  const res = await fetch(src)
+  if (!res.ok) throw new Error(`拉取图片失败：HTTP ${res.status}`)
+  return res.blob()
+}
+
+async function parseImageResult(res: Response): Promise<string> {
+  if (!res.ok) throw new Error(await readError(res))
+  const data = await res.json()
+  const item = data?.data?.[0]
+  if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`
+  if (item?.url) return item.url as string
+  throw new Error('接口返回格式异常：没有 data[0].b64_json 或 data[0].url')
+}
+
 /** 以图生图：POST /images/edits（multipart），参考图 + 提示词 → 新图 */
 export async function generateImageEdit(
   p: Provider,
@@ -81,22 +98,39 @@ export async function generateImageEdit(
   const fd = new FormData()
   fd.append('model', model)
   fd.append('prompt', prompt)
-  if (images.length === 1) {
-    fd.append('image', dataURLToBlob(images[0]), 'ref-0.png')
+  const blobs = await Promise.all(images.map(srcToBlob))
+  if (blobs.length === 1) {
+    fd.append('image', blobs[0], 'ref-0.png')
   } else {
-    images.forEach((src, i) => fd.append('image[]', dataURLToBlob(src), `ref-${i}.png`))
+    blobs.forEach((b, i) => fd.append('image[]', b, `ref-${i}.png`))
   }
   const res = await fetch(`${base(p)}/images/edits`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${p.apiKey}` },
     body: fd,
   })
-  if (!res.ok) throw new Error(await readError(res))
-  const data = await res.json()
-  const item = data?.data?.[0]
-  if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`
-  if (item?.url) return item.url as string
-  throw new Error('接口返回格式异常：没有 data[0].b64_json 或 data[0].url')
+  return parseImageResult(res)
+}
+
+/** 蒙版局部重绘：POST /images/edits，mask 全透明处 = 允许重绘的区域 */
+export async function generateImageInpaint(
+  p: Provider,
+  model: string,
+  prompt: string,
+  image: string,
+  mask: string,
+): Promise<string> {
+  const fd = new FormData()
+  fd.append('model', model)
+  fd.append('prompt', prompt)
+  fd.append('image', await srcToBlob(image), 'image.png')
+  fd.append('mask', dataURLToBlob(mask), 'mask.png')
+  const res = await fetch(`${base(p)}/images/edits`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${p.apiKey}` },
+    body: fd,
+  })
+  return parseImageResult(res)
 }
 
 function blobToDataURL(blob: Blob): Promise<string> {

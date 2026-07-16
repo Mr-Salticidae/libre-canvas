@@ -3,7 +3,9 @@ import { CanvasStage } from './canvas/CanvasStage'
 import { Toolbar } from './panels/Toolbar'
 import { Inspector } from './panels/Inspector'
 import { SettingsModal } from './panels/SettingsModal'
+import { MaskEditor } from './panels/MaskEditor'
 import { loadDocFromStorage, setupAutosave, useStore } from './store'
+import { useUI } from './ui'
 
 let booted = false
 
@@ -23,6 +25,9 @@ export default function App() {
       if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || t.isContentEditable) {
         return
       }
+      // 弹层打开时不响应画布快捷键（蒙版涂抹时按 Delete 不该删节点）
+      const ui = useUI.getState()
+      if (ui.maskEditingId || ui.settingsOpen) return
       const s = useStore.getState()
       if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection.length > 0) {
         e.preventDefault()
@@ -48,6 +53,7 @@ export default function App() {
       <Toolbar />
       <Inspector />
       <SettingsModal />
+      <MaskEditor />
     </>
   )
 }

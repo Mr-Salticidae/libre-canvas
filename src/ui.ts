@@ -24,6 +24,9 @@ interface UIState {
   setEditingId: (id: string | null) => void
   connecting: Connecting | null
   setConnecting: (c: Connecting | null) => void
+  /** 正在做蒙版重绘的图片节点 id */
+  maskEditingId: string | null
+  setMaskEditingId: (id: string | null) => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -35,6 +38,8 @@ export const useUI = create<UIState>((set) => ({
   setEditingId: (editingId) => set({ editingId }),
   connecting: null,
   setConnecting: (connecting) => set({ connecting }),
+  maskEditingId: null,
+  setMaskEditingId: (maskEditingId) => set({ maskEditingId }),
 }))
 
 /** 屏幕坐标 → 世界坐标 */

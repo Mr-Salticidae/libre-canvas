@@ -34,6 +34,20 @@ export function Inspector() {
   const setSettingsOpen = useUI((s) => s.setSettingsOpen)
 
   const node = selection.length === 1 ? nodes[selection[0]] : undefined
+
+  if (node && node.type === 'image' && node.src) {
+    return (
+      <div className="inspector">
+        <h3>🖼 图片</h3>
+        {node.name && <p className="hint">{node.name}</p>}
+        <button className="primary" onClick={() => useUI.getState().setMaskEditingId(node.id)}>
+          🖌 局部重绘
+        </button>
+        <p className="hint">涂抹指定区域，用提示词重新生成该区域（inpainting）。</p>
+      </div>
+    )
+  }
+
   if (!node || node.type !== 'generator') return null
 
   const provider = providers.find((p) => p.id === node.providerId) ?? providers[0]
