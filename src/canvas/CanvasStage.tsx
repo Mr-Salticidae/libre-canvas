@@ -39,6 +39,7 @@ export function CanvasStage() {
   const setEditingId = useUI((s) => s.setEditingId)
   const connecting = useUI((s) => s.connecting)
   const setConnecting = useUI((s) => s.setConnecting)
+  const guides = useUI((s) => s.guides)
   const [spaceDown, setSpaceDown] = useState(false)
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
   const justMarqueed = useRef(false)
@@ -111,6 +112,7 @@ export function CanvasStage() {
     const node = createGeneratorNode(x - 130, y - 75)
     addNode(node)
     setSelection([node.id])
+    useUI.getState().requestPromptFocus()
   }
 
   const pointerWorld = () => {
@@ -255,6 +257,37 @@ export function CanvasStage() {
               />
             )
           })}
+          {guides &&
+            (() => {
+              const x0 = (0 - camera.x) / camera.scale
+              const x1 = (size.w - camera.x) / camera.scale
+              const y0 = (0 - camera.y) / camera.scale
+              const y1 = (size.h - camera.y) / camera.scale
+              return (
+                <>
+                  {guides.v !== undefined && (
+                    <Line
+                      points={[guides.v, y0, guides.v, y1]}
+                      stroke={pal.accent2}
+                      strokeWidth={1}
+                      strokeScaleEnabled={false}
+                      dash={[4, 4]}
+                      listening={false}
+                    />
+                  )}
+                  {guides.h !== undefined && (
+                    <Line
+                      points={[x0, guides.h, x1, guides.h]}
+                      stroke={pal.accent2}
+                      strokeWidth={1}
+                      strokeScaleEnabled={false}
+                      dash={[4, 4]}
+                      listening={false}
+                    />
+                  )}
+                </>
+              )
+            })()}
           {marquee && (
             <Rect
               x={Math.min(marquee.x1, marquee.x2)}

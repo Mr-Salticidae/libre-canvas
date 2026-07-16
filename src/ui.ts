@@ -29,6 +29,12 @@ interface UIState {
   setMaskEditingId: (id: string | null) => void
   projectsOpen: boolean
   setProjectsOpen: (open: boolean) => void
+  /** 拖动吸附辅助线（世界坐标，v=竖线 x / h=横线 y） */
+  guides: { v?: number; h?: number } | null
+  setGuides: (g: { v?: number; h?: number } | null) => void
+  /** 双击生成节点 → 请求聚焦提示词框（自增计数触发） */
+  promptFocusTick: number
+  requestPromptFocus: () => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -44,6 +50,10 @@ export const useUI = create<UIState>((set) => ({
   setMaskEditingId: (maskEditingId) => set({ maskEditingId }),
   projectsOpen: false,
   setProjectsOpen: (projectsOpen) => set({ projectsOpen }),
+  guides: null,
+  setGuides: (guides) => set({ guides }),
+  promptFocusTick: 0,
+  requestPromptFocus: () => set((s) => ({ promptFocusTick: s.promptFocusTick + 1 })),
 }))
 
 /** 屏幕坐标 → 世界坐标 */

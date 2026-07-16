@@ -22,7 +22,51 @@ function expandByGroup(id: string): string[] {
     .map((n) => n.id)
 }
 
-/** 选择 + 拖拽的公共行为（多选/编组时整体移动） */
+/**
+ * 拖动吸附：对齐其它节点的左/中/右（上/中/下）。
+ * 返回吸附后的坐标与辅助线位置（世界坐标）。
+ */
+function snapPosition(
+  node: CanvasNode,
+  nx: number,
+  ny: number,
+  excludeIds: string[],
+): { x: number; y: number; v?: number; h?: number } {
+  const scale = useUI.getState().camera.scale
+  const TH = 6 / scale
+  const nodes = Object.values(useStore.getState().nodes).filter((o) => !excludeIds.includes(o.id))
+  const selfXs = [0, node.width / 2, node.width]
+  const selfYs = [0, node.height / 2, node.height]
+
+  let bestDx: number | null = null
+  let bestDy: number | null = null
+  let v: number | undefined
+  let h: number | undefined
+
+  for (const o of nodes) {
+    for (const tx of [o.x, o.x + o.width / 2, o.x + o.width]) {
+      for (const off of selfXs) {
+        const d = tx - (nx + off)
+        if (Math.abs(d) <= TH && (bestDx === null || Math.abs(d) < Math.abs(bestDx))) {
+          bestDx = d
+          v = tx
+        }
+      }
+    }
+    for (const ty of [o.y, o.y + o.height / 2, o.y + o.height]) {
+      for (const off of selfYs) {
+        const d = ty - (ny + off)
+        if (Math.abs(d) <= TH && (bestDy === null || Math.abs(d) < Math.abs(bestDy))) {
+          bestDy = d
+          h = ty
+        }
+      }
+    }
+  }
+  return { x: nx + (bestDx ?? 0), y: ny + (bestDy ?? 0), v, h }
+}
+
+/** 选择 + 拖拽的公共行为（多选/编组时整体移动，拖动时对齐吸附） */
 function useNodeHandlers(node: CanvasNode) {
   const setSelection = useStore((s) => s.setSelection)
   const updateNode = useStore((s) => s.updateNode)
@@ -51,13 +95,21 @@ function useNodeHandlers(node: CanvasNode) {
       const s = useStore.getState()
       const cur = s.nodes[node.id]
       if (!cur) return
-      const dx = e.target.x() - cur.x
-      const dy = e.target.y() - cur.y
-      updateNode(node.id, { x: e.target.x(), y: e.target.y() })
-      // 被拖节点在多选之中 → 其余选中节点同步位移
-      if (s.selection.includes(node.id) && s.selection.length > 1) {
-        moveNodes(s.selection.filter((i) => i !== node.id), dx, dy)
+      const moving = s.selection.includes(node.id) && s.selection.length > 1 ? s.selection : [node.id]
+      const snapped = snapPosition(node, e.target.x(), e.target.y(), moving)
+      // 回写 Konva 节点，让视觉真正吸上去
+      e.target.position({ x: snapped.x, y: snapped.y })
+      const dx = snapped.x - cur.x
+      const dy = snapped.y - cur.y
+      updateNode(node.id, { x: snapped.x, y: snapped.y })
+      if (moving.length > 1) {
+        moveNodes(moving.filter((i) => i !== node.id), dx, dy)
       }
+      useUI.getState().setGuides(snapped.v !== undefined || snapped.h !== undefined ? { v: snapped.v, h: snapped.h } : null)
+    },
+    onDragEnd: (e: KonvaEventObject<DragEvent>) => {
+      e.cancelBubble = true
+      useUI.getState().setGuides(null)
     },
   }
 }
@@ -431,6 +483,33 @@ export const MODE_LABEL: Record<string, string> = {
 export function GenNode({ node, selected }: NodeProps) {
   const pal = usePalette()
   const h = useNodeHandlers(node)
+  const setSelection = useStore((s) => s.setSelection)
+  const rectRef = useRef<Konva.Rect>(null)
+  const running = node.status === 'running'
+
+  // 生成中：蛛丝紫辉光呼吸
+  useEffect(() => {
+    const rect = rectRef.current
+    const layer = rect?.getLayer()
+    if (!running || !rect || !layer) return
+    rect.shadowColor(pal.accent)
+    const anim = new Konva.Animation((frame) => {
+      const t = (Math.sin((frame?.time ?? 0) / 350) + 1) / 2
+      rect.shadowOpacity(0.25 + t * 0.45)
+      rect.shadowBlur(18 + t * 20)
+      rect.strokeWidth(1.2 + t * 1.3)
+    }, layer)
+    anim.start()
+    return () => {
+      anim.stop()
+      rect.shadowColor(pal.shadow)
+      rect.shadowOpacity(pal.shadowOpacity)
+      rect.shadowBlur(16)
+      rect.strokeWidth(1.2)
+      layer.batchDraw()
+    }
+  }, [running, pal])
+
   const statusText =
     node.status === 'running'
       ? `⏳ ${node.progress ?? '生成中…'}`
@@ -440,8 +519,19 @@ export function GenNode({ node, selected }: NodeProps) {
   const statusColor = node.status === 'error' ? pal.danger : pal.warn
 
   return (
-    <Group x={node.x} y={node.y} draggable {...h}>
+    <Group
+      x={node.x}
+      y={node.y}
+      draggable
+      {...h}
+      onDblClick={(e) => {
+        e.cancelBubble = true
+        setSelection([node.id])
+        useUI.getState().requestPromptFocus()
+      }}
+    >
       <Rect
+        ref={rectRef}
         width={node.width}
         height={node.height}
         fill={pal.accentSoft}

@@ -40,6 +40,7 @@ export function Toolbar() {
     const node = createGeneratorNode(c.x - 130, c.y - 75)
     addNode(node)
     setSelection([node.id])
+    useUI.getState().requestPromptFocus()
   }
 
   const importMedia = async (files: FileList | null) => {

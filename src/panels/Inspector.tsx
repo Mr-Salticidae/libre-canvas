@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { useProviders } from '../providers'
 import { useUI } from '../ui'
@@ -54,7 +54,18 @@ export function Inspector() {
   const providers = useProviders((s) => s.providers)
   const setSettingsOpen = useUI((s) => s.setSettingsOpen)
   const camera = useUI((s) => s.camera)
+  const promptFocusTick = useUI((s) => s.promptFocusTick)
   const [atOpen, setAtOpen] = useState(false)
+
+  // 双击生成节点 → 聚焦提示词框（光标落到末尾）
+  useEffect(() => {
+    if (promptFocusTick === 0) return
+    const ta = document.querySelector<HTMLTextAreaElement>('.inspector .prompt-wrap textarea')
+    if (ta) {
+      ta.focus()
+      ta.setSelectionRange(ta.value.length, ta.value.length)
+    }
+  }, [promptFocusTick])
 
   const node = selection.length === 1 ? nodes[selection[0]] : undefined
 
