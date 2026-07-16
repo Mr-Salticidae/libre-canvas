@@ -180,6 +180,26 @@ export function CanvasStage() {
     setConnecting(null)
   }
 
+  const onContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const w = { x: (e.clientX - camera.x) / camera.scale, y: (e.clientY - camera.y) / camera.scale }
+    // 几何命中：插入顺序靠后 = 渲染在上层，取最后一个命中的
+    const hits = Object.values(nodes).filter(
+      (n) => w.x >= n.x && w.x <= n.x + n.width && w.y >= n.y && w.y <= n.y + n.height,
+    )
+    const hit = hits[hits.length - 1]
+    if (hit) {
+      const sel = useStore.getState().selection
+      if (!sel.includes(hit.id)) {
+        const ids = hit.groupId
+          ? Object.values(nodes).filter((n) => n.groupId === hit.groupId).map((n) => n.id)
+          : [hit.id]
+        setSelection(ids)
+      }
+    }
+    useUI.getState().setContextMenu({ x: e.clientX, y: e.clientY, nodeId: hit?.id })
+  }
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const files = Array.from(e.dataTransfer.files)
@@ -199,6 +219,7 @@ export function CanvasStage() {
       style={{ cursor: spaceDown ? 'grab' : undefined }}
       onDrop={onDrop}
       onDragOver={(e) => e.preventDefault()}
+      onContextMenu={onContextMenu}
     >
       {nodeList.length === 0 && (
         <div className="canvas-empty">

@@ -69,22 +69,42 @@ export function Inspector() {
 
   const node = selection.length === 1 ? nodes[selection[0]] : undefined
 
-  if (node && node.type === 'image' && node.src) {
+  if (node && node.type !== 'generator') {
+    const download = node.src && (
+      <button
+        onClick={() => {
+          const a = document.createElement('a')
+          a.href = node.src!
+          a.download = node.name || `librecanvas-${node.type}`
+          a.click()
+        }}
+      >
+        ⤓ 下载
+      </button>
+    )
+    let actions: React.ReactNode = null
+    let barW = 120
+    if (node.type === 'image' && node.src) {
+      barW = 224
+      actions = (
+        <>
+          <button className="primary" onClick={() => useUI.getState().setMaskEditingId(node.id)}>
+            🖌 局部重绘
+          </button>
+          {download}
+        </>
+      )
+    } else if ((node.type === 'video' || node.type === 'audio') && node.src) {
+      actions = download
+    } else if (node.type === 'text') {
+      actions = (
+        <button onClick={() => useUI.getState().setEditingId(node.id)}>✎ 编辑</button>
+      )
+    }
+    if (!actions) return null
     return (
-      <div className="node-bar" style={floatStyle(node, camera, 224, 48)}>
-        <button className="primary" onClick={() => useUI.getState().setMaskEditingId(node.id)}>
-          🖌 局部重绘
-        </button>
-        <button
-          onClick={() => {
-            const a = document.createElement('a')
-            a.href = node.src!
-            a.download = node.name || 'librecanvas-image.png'
-            a.click()
-          }}
-        >
-          ⤓ 下载
-        </button>
+      <div className="node-bar" style={floatStyle(node, camera, barW, 48)}>
+        {actions}
       </div>
     )
   }

@@ -5,9 +5,11 @@ import { Inspector } from './panels/Inspector'
 import { SettingsModal } from './panels/SettingsModal'
 import { MaskEditor } from './panels/MaskEditor'
 import { ProjectsPanel } from './panels/ProjectsPanel'
+import { ContextMenu } from './panels/ContextMenu'
 import { useStore } from './store'
 import { bootProjects, setupProjectAutosave } from './projects'
-import { useUI } from './ui'
+import { copySelection, duplicateSelection, pasteClipboard } from './clipboard'
+import { fitView, useUI } from './ui'
 
 let booted = false
 
@@ -39,6 +41,18 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         s.setSelection(Object.keys(s.nodes))
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        copySelection()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        e.preventDefault()
+        pasteClipboard()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        duplicateSelection()
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        fitView()
       } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'g') {
         e.preventDefault()
         s.groupSelected()
@@ -68,6 +82,7 @@ export default function App() {
       <Inspector />
       <SettingsModal />
       <MaskEditor />
+      <ContextMenu />
     </>
   )
 }

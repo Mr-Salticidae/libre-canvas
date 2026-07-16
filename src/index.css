@@ -456,6 +456,90 @@ label {
   color: var(--ink);
 }
 
+/* ---------- 右键菜单 ---------- */
+.context-menu {
+  position: fixed;
+  min-width: 176px;
+  background: color-mix(in srgb, var(--paper-2) 96%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 5px;
+  z-index: 40;
+  backdrop-filter: saturate(1.4) blur(10px);
+  box-shadow: 0 14px 34px -14px rgba(var(--shadow), 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.context-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: none;
+  border-radius: 8px;
+  text-align: left;
+  padding: 7px 10px;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+
+.context-menu button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.context-menu button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.context-menu button kbd {
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+
+.cm-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 4px 6px;
+}
+
+/* 浮层入场：淡入上浮 */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.inspector,
+.node-bar,
+.context-menu,
+.at-menu,
+.projects-panel {
+  animation: rise 0.16s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector,
+  .node-bar,
+  .context-menu,
+  .at-menu,
+  .projects-panel {
+    animation: none;
+  }
+}
+
 /* ---------- 画布项目面板 ---------- */
 .projects-panel {
   position: fixed;

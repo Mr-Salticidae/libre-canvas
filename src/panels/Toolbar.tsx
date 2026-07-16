@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useStore } from '../store'
-import { useUI, viewportCenter } from '../ui'
+import { fitView, useUI, viewportCenter } from '../ui'
 import { uid, type Doc } from '../types'
 import { download } from '../helpers'
 import { importFilesToCanvas } from '../importFiles'
@@ -89,6 +89,7 @@ export function Toolbar() {
       <span className="divider" />
       <button onClick={undo} title="撤销 (Ctrl+Z)">⤺</button>
       <button onClick={redo} title="重做 (Ctrl+Shift+Z)">⤻</button>
+      <button onClick={fitView} title="适应画布 (F)">⌖</button>
       <span className="divider" />
       <button onClick={exportJSON} title="导出画布为 JSON">导出</button>
       <button onClick={() => jsonInput.current?.click()} title="导入画布 JSON">导入</button>

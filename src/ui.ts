@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useStore } from './store'
 
 export interface Camera {
   x: number
@@ -35,6 +36,9 @@ interface UIState {
   /** 双击生成节点 → 请求聚焦提示词框（自增计数触发） */
   promptFocusTick: number
   requestPromptFocus: () => void
+  /** 右键菜单：屏幕坐标 + 命中的节点（空白处为 undefined） */
+  contextMenu: { x: number; y: number; nodeId?: string } | null
+  setContextMenu: (m: { x: number; y: number; nodeId?: string } | null) => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -54,6 +58,8 @@ export const useUI = create<UIState>((set) => ({
   setGuides: (guides) => set({ guides }),
   promptFocusTick: 0,
   requestPromptFocus: () => set((s) => ({ promptFocusTick: s.promptFocusTick + 1 })),
+  contextMenu: null,
+  setContextMenu: (contextMenu) => set({ contextMenu }),
 }))
 
 /** 屏幕坐标 → 世界坐标 */
@@ -64,4 +70,27 @@ export function toWorld(camera: Camera, sx: number, sy: number) {
 /** 当前视口中心的世界坐标 */
 export function viewportCenter(camera: Camera) {
   return toWorld(camera, window.innerWidth / 2, window.innerHeight / 2)
+}
+
+/** 适应画布：缩放视野到刚好容纳全部节点 */
+export function fitView() {
+  const nodes = Object.values(useStore.getState().nodes)
+  if (nodes.length === 0) {
+    useUI.getState().setCamera({ x: 0, y: 0, scale: 1 })
+    return
+  }
+  const minX = Math.min(...nodes.map((n) => n.x))
+  const minY = Math.min(...nodes.map((n) => n.y))
+  const maxX = Math.max(...nodes.map((n) => n.x + n.width))
+  const maxY = Math.max(...nodes.map((n) => n.y + n.height))
+  const w = Math.max(1, maxX - minX)
+  const h = Math.max(1, maxY - minY)
+  const PAD = 100
+  const scale = Math.min((window.innerWidth - PAD * 2) / w, (window.innerHeight - PAD * 2) / h, 1.5)
+  const clamped = Math.max(0.08, Math.min(4, scale))
+  useUI.getState().setCamera({
+    x: window.innerWidth / 2 - (minX + w / 2) * clamped,
+    y: window.innerHeight / 2 - (minY + h / 2) * clamped,
+    scale: clamped,
+  })
 }
