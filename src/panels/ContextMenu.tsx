@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useStore } from '../store'
 import { fitView, toWorld, useUI } from '../ui'
 import { copySelection, duplicateSelection, hasClipboard, pasteClipboard } from '../clipboard'
+import { iterateFromNode } from '../branch'
 import { createGeneratorNode } from '../canvas/CanvasStage'
 import { uid } from '../types'
 
@@ -55,6 +56,8 @@ export function ContextMenu() {
     <div className="context-menu" style={style} onMouseDown={(e) => e.stopPropagation()}>
       {node ? (
         <>
+          {(node.type === 'image' || node.type === 'text') &&
+            item('✦ 以此迭代（开新分支）', () => iterateFromNode(node))}
           {item('复制', () => copySelection(), { kbd: 'Ctrl+C' })}
           {item('创建副本', () => duplicateSelection(), { kbd: 'Ctrl+D' })}
           {(node.type === 'image' || node.type === 'video' || node.type === 'audio') &&

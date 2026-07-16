@@ -6,6 +6,7 @@ import { SettingsModal } from './panels/SettingsModal'
 import { MaskEditor } from './panels/MaskEditor'
 import { ProjectsPanel } from './panels/ProjectsPanel'
 import { ContextMenu } from './panels/ContextMenu'
+import { MiniMap } from './panels/MiniMap'
 import { useStore } from './store'
 import { bootProjects, setupProjectAutosave } from './projects'
 import { copySelection, duplicateSelection, pasteClipboard } from './clipboard'
@@ -83,6 +84,7 @@ export default function App() {
       <SettingsModal />
       <MaskEditor />
       <ContextMenu />
+      <MiniMap />
     </>
   )
 }

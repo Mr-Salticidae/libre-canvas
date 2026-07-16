@@ -11,6 +11,7 @@ import {
   generateVideo,
 } from '../api/openai'
 import { fitSize, loadImage, loadVideoMeta } from '../helpers'
+import { iterateFromNode } from '../branch'
 import { MODE_LABEL } from '../canvas/nodes'
 
 const MODES: GenMode[] = ['image', 'text', 'video', 'audio']
@@ -82,23 +83,35 @@ export function Inspector() {
         ⤓ 下载
       </button>
     )
+    const iterate = (
+      <button
+        className="primary"
+        title="以这张卡为参考开新分支（不覆盖原结果）"
+        onClick={() => iterateFromNode(node)}
+      >
+        ✦ 迭代
+      </button>
+    )
     let actions: React.ReactNode = null
     let barW = 120
     if (node.type === 'image' && node.src) {
-      barW = 224
+      barW = 300
       actions = (
         <>
-          <button className="primary" onClick={() => useUI.getState().setMaskEditingId(node.id)}>
-            🖌 局部重绘
-          </button>
+          {iterate}
+          <button onClick={() => useUI.getState().setMaskEditingId(node.id)}>🖌 局部重绘</button>
           {download}
         </>
       )
     } else if ((node.type === 'video' || node.type === 'audio') && node.src) {
       actions = download
     } else if (node.type === 'text') {
+      barW = 176
       actions = (
-        <button onClick={() => useUI.getState().setEditingId(node.id)}>✎ 编辑</button>
+        <>
+          {iterate}
+          <button onClick={() => useUI.getState().setEditingId(node.id)}>✎ 编辑</button>
+        </>
       )
     }
     if (!actions) return null

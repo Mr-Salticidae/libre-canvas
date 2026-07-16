@@ -826,6 +826,41 @@ label {
   margin-top: 4px;
 }
 
+/* ---------- 小地图 ---------- */
+.minimap {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 9;
+  background: color-mix(in srgb, var(--paper-2) 88%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  backdrop-filter: saturate(1.4) blur(10px);
+  box-shadow: 0 14px 34px -18px rgba(var(--shadow), 0.45);
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.mm-node {
+  position: absolute;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ink-soft) 55%, transparent);
+  pointer-events: none;
+}
+
+.mm-node.mm-generator {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.mm-viewport {
+  position: absolute;
+  border: 1.5px solid var(--accent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+
 /* ---------- 通用 ---------- */
 .error {
   color: var(--danger);
