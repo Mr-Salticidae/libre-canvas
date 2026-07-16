@@ -2,7 +2,13 @@ import { useStore } from '../store'
 import { useProviders } from '../providers'
 import { useUI } from '../ui'
 import { uid, type GenMode } from '../types'
-import { generateImage, generateSpeech, generateText, generateVideo } from '../api/openai'
+import {
+  generateImage,
+  generateImageEdit,
+  generateSpeech,
+  generateText,
+  generateVideo,
+} from '../api/openai'
 import { fitSize, loadImage, loadVideoMeta } from '../helpers'
 import { MODE_LABEL } from '../canvas/nodes'
 
@@ -19,9 +25,11 @@ const MODEL_PLACEHOLDER: Record<GenMode, string> = {
 export function Inspector() {
   const selection = useStore((s) => s.selection)
   const nodes = useStore((s) => s.nodes)
+  const edges = useStore((s) => s.edges)
   const updateNode = useStore((s) => s.updateNode)
   const addNode = useStore((s) => s.addNode)
   const addEdge = useStore((s) => s.addEdge)
+  const removeEdge = useStore((s) => s.removeEdge)
   const providers = useProviders((s) => s.providers)
   const setSettingsOpen = useUI((s) => s.setSettingsOpen)
 
@@ -29,6 +37,12 @@ export function Inspector() {
   if (!node || node.type !== 'generator') return null
 
   const provider = providers.find((p) => p.id === node.providerId) ?? providers[0]
+
+  // 参考输入：指向本节点的边里，源头是图片的
+  const refEdges = edges
+    .map((e) => ({ edge: e, from: nodes[e.from] }))
+    .filter((r) => r.edge.to === node.id && r.from?.type === 'image' && r.from.src)
+  const refImages = refEdges.map((r) => r.from!.src!)
 
   const run = async () => {
     if (!provider) {
@@ -49,7 +63,7 @@ export function Inspector() {
     const outPos = { x: node.x + node.width + 80, y: node.y }
     try {
       if (node.mode === 'text') {
-        const text = await generateText(provider, model, prompt)
+        const text = await generateText(provider, model, prompt, refImages)
         const out = { id: uid(), type: 'text' as const, ...outPos, width: 360, height: 120, text }
         addNode(out, { history: false })
         addEdge({ id: uid(), from: node.id, to: out.id })
@@ -75,7 +89,10 @@ export function Inspector() {
         addNode(out, { history: false })
         addEdge({ id: uid(), from: node.id, to: out.id })
       } else {
-        const src = await generateImage(provider, model, prompt)
+        const src =
+          refImages.length > 0
+            ? await generateImageEdit(provider, model, prompt, refImages)
+            : await generateImage(provider, model, prompt)
         const img = await loadImage(src)
         const { width, height } = fitSize(img.naturalWidth, img.naturalHeight)
         const out = { id: uid(), type: 'image' as const, ...outPos, width, height, src }
@@ -140,6 +157,31 @@ export function Inspector() {
             <option key={m} value={m} />
           ))}
         </datalist>
+      )}
+
+      <label>参考图（{refEdges.length}）</label>
+      {refEdges.length > 0 ? (
+        <div className="ref-list">
+          {refEdges.map((r) => (
+            <div key={r.edge.id} className="ref-item">
+              <img src={r.from!.src} alt="" />
+              <button title="移除这张参考图" onClick={() => removeEdge(r.edge.id)}>
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="hint">悬停图片卡片，从右侧圆点拖一条线连到本节点，即可作为参考图。</p>
+      )}
+      {refEdges.length > 0 && node.mode === 'image' && (
+        <p className="hint">将走以图生图接口（/images/edits）。</p>
+      )}
+      {refEdges.length > 0 && node.mode === 'text' && (
+        <p className="hint">参考图会作为视觉输入发给多模态模型。</p>
+      )}
+      {refEdges.length > 0 && (node.mode === 'video' || node.mode === 'audio') && (
+        <p className="hint">⚠ 视频/音频生成暂不使用参考图，本次将忽略。</p>
       )}
 
       {node.mode === 'audio' && (

@@ -14,6 +14,7 @@ interface StoreState extends Doc {
   updateNode: (id: string, patch: Partial<CanvasNode>) => void
   removeNodes: (ids: string[]) => void
   addEdge: (edge: Edge) => void
+  removeEdge: (id: string) => void
   setSelection: (ids: string[]) => void
   undo: () => void
   redo: () => void
@@ -63,6 +64,11 @@ export const useStore = create<StoreState>((set, get) => ({
 
   addEdge: (edge) => {
     set((s) => ({ edges: [...s.edges, edge] }))
+  },
+
+  removeEdge: (id) => {
+    get().snapshot()
+    set((s) => ({ edges: s.edges.filter((e) => e.id !== id) }))
   },
 
   setSelection: (ids) => set({ selection: ids }),

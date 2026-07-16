@@ -59,8 +59,18 @@ function useImage(src?: string) {
 export function ImageNode({ node, selected }: NodeProps) {
   const img = useImage(node.src)
   const h = useNodeHandlers(node)
+  const [hovered, setHovered] = useState(false)
+  const setConnecting = useUI((s) => s.setConnecting)
+
   return (
-    <Group x={node.x} y={node.y} draggable {...h}>
+    <Group
+      x={node.x}
+      y={node.y}
+      draggable
+      {...h}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <Rect
         width={node.width}
         height={node.height}
@@ -93,6 +103,25 @@ export function ImageNode({ node, selected }: NodeProps) {
           stroke={ACCENT}
           strokeWidth={2.5}
           listening={false}
+        />
+      )}
+      {(hovered || selected) && (
+        <Circle
+          x={node.width}
+          y={node.height / 2}
+          radius={8}
+          fill={ACCENT}
+          stroke="#fff"
+          strokeWidth={1.5}
+          onMouseDown={(e) => {
+            // 拦截住，别触发卡片拖拽/画布平移；由 CanvasStage 接管连线
+            e.cancelBubble = true
+            setConnecting({
+              fromId: node.id,
+              x: node.x + node.width,
+              y: node.y + node.height / 2,
+            })
+          }}
         />
       )}
     </Group>

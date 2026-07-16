@@ -6,6 +6,14 @@ export interface Camera {
   scale: number
 }
 
+/** 正在从某个节点锚点拖出参考连线 */
+export interface Connecting {
+  fromId: string
+  /** 拖动端当前的世界坐标 */
+  x: number
+  y: number
+}
+
 interface UIState {
   camera: Camera
   setCamera: (c: Camera) => void
@@ -14,6 +22,8 @@ interface UIState {
   /** 正在内联编辑文本的节点 id */
   editingId: string | null
   setEditingId: (id: string | null) => void
+  connecting: Connecting | null
+  setConnecting: (c: Connecting | null) => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -23,6 +33,8 @@ export const useUI = create<UIState>((set) => ({
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   editingId: null,
   setEditingId: (editingId) => set({ editingId }),
+  connecting: null,
+  setConnecting: (connecting) => set({ connecting }),
 }))
 
 /** 屏幕坐标 → 世界坐标 */

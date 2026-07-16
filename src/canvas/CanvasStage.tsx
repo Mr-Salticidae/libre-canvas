@@ -35,6 +35,8 @@ export function CanvasStage() {
   const setCamera = useUI((s) => s.setCamera)
   const editingId = useUI((s) => s.editingId)
   const setEditingId = useUI((s) => s.setEditingId)
+  const connecting = useUI((s) => s.connecting)
+  const setConnecting = useUI((s) => s.setConnecting)
 
   useEffect(() => {
     const onResize = () => setSize({ w: window.innerWidth, h: window.innerHeight })
@@ -80,6 +82,45 @@ export function CanvasStage() {
     setSelection([node.id])
   }
 
+  const pointerWorld = () => {
+    const stage = stageRef.current
+    const p = stage?.getPointerPosition()
+    if (!p) return null
+    return { x: (p.x - camera.x) / camera.scale, y: (p.y - camera.y) / camera.scale }
+  }
+
+  const onStageMouseMove = () => {
+    if (!connecting) return
+    const w = pointerWorld()
+    if (w) setConnecting({ ...connecting, x: w.x, y: w.y })
+  }
+
+  const onStageMouseUp = () => {
+    if (!connecting) return
+    const w = pointerWorld()
+    if (w) {
+      const target = Object.values(nodes).find(
+        (n) =>
+          n.type === 'generator' &&
+          w.x >= n.x &&
+          w.x <= n.x + n.width &&
+          w.y >= n.y &&
+          w.y <= n.y + n.height,
+      )
+      const s = useStore.getState()
+      if (
+        target &&
+        target.id !== connecting.fromId &&
+        !s.edges.some((e) => e.from === connecting.fromId && e.to === target.id)
+      ) {
+        s.snapshot()
+        s.addEdge({ id: uid(), from: connecting.fromId, to: target.id })
+        setSelection([target.id])
+      }
+    }
+    setConnecting(null)
+  }
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const files = Array.from(e.dataTransfer.files)
@@ -107,10 +148,12 @@ export function CanvasStage() {
         y={camera.y}
         scaleX={camera.scale}
         scaleY={camera.scale}
-        draggable
+        draggable={!connecting}
         onWheel={onWheel}
         onClick={onStageClick}
         onDblClick={onStageDblClick}
+        onMouseMove={onStageMouseMove}
+        onMouseUp={onStageMouseUp}
         onDragEnd={(e) => {
           if (e.target === stageRef.current) {
             setCamera({ ...camera, x: e.target.x(), y: e.target.y() })
@@ -127,18 +170,39 @@ export function CanvasStage() {
             const x2 = to.x
             const y2 = to.y + to.height / 2
             const dx = Math.max(40, Math.abs(x2 - x1) / 2)
+            // 指向生成节点的是参考输入（实线高亮），其余是生成输出（虚线）
+            const isInput = to.type === 'generator'
             return (
               <Line
                 key={edge.id}
                 points={[x1, y1, x1 + dx, y1, x2 - dx, y2, x2, y2]}
                 bezier
-                stroke="#5a5a78"
-                strokeWidth={1.5}
-                dash={[6, 4]}
+                stroke={isInput ? '#7c5cff' : '#5a5a78'}
+                strokeWidth={isInput ? 2 : 1.5}
+                dash={isInput ? undefined : [6, 4]}
+                opacity={isInput ? 0.9 : 1}
                 listening={false}
               />
             )
           })}
+          {connecting &&
+            (() => {
+              const from = nodes[connecting.fromId]
+              if (!from) return null
+              const x1 = from.x + from.width
+              const y1 = from.y + from.height / 2
+              const dx = Math.max(40, Math.abs(connecting.x - x1) / 2)
+              return (
+                <Line
+                  points={[x1, y1, x1 + dx, y1, connecting.x - dx, connecting.y, connecting.x, connecting.y]}
+                  bezier
+                  stroke="#7c5cff"
+                  strokeWidth={2}
+                  dash={[4, 4]}
+                  listening={false}
+                />
+              )
+            })()}
           {nodeList.map((node) => {
             const selected = selection.includes(node.id)
             if (node.type === 'image') return <ImageNode key={node.id} node={node} selected={selected} />

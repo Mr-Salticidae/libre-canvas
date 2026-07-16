@@ -33,14 +33,26 @@ export async function testProvider(p: Provider): Promise<{ ok: boolean; message:
   }
 }
 
-/** 文生文：POST /chat/completions */
-export async function generateText(p: Provider, model: string, prompt: string): Promise<string> {
+/** 文生文：POST /chat/completions。带参考图时按多模态 content 传入（视觉理解） */
+export async function generateText(
+  p: Provider,
+  model: string,
+  prompt: string,
+  images: string[] = [],
+): Promise<string> {
+  const content =
+    images.length > 0
+      ? [
+          { type: 'text', text: prompt },
+          ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+        ]
+      : prompt
   const res = await fetch(`${base(p)}/chat/completions`, {
     method: 'POST',
     headers: headers(p),
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content }],
     }),
   })
   if (!res.ok) throw new Error(await readError(res))
@@ -48,6 +60,43 @@ export async function generateText(p: Provider, model: string, prompt: string): 
   const text = data?.choices?.[0]?.message?.content
   if (typeof text !== 'string') throw new Error('接口返回格式异常：没有 choices[0].message.content')
   return text
+}
+
+function dataURLToBlob(dataURL: string): Blob {
+  const [head, b64] = dataURL.split(',')
+  const mime = head.match(/data:(.*?)[;,]/)?.[1] ?? 'image/png'
+  const bin = atob(b64)
+  const arr = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
+  return new Blob([arr], { type: mime })
+}
+
+/** 以图生图：POST /images/edits（multipart），参考图 + 提示词 → 新图 */
+export async function generateImageEdit(
+  p: Provider,
+  model: string,
+  prompt: string,
+  images: string[],
+): Promise<string> {
+  const fd = new FormData()
+  fd.append('model', model)
+  fd.append('prompt', prompt)
+  if (images.length === 1) {
+    fd.append('image', dataURLToBlob(images[0]), 'ref-0.png')
+  } else {
+    images.forEach((src, i) => fd.append('image[]', dataURLToBlob(src), `ref-${i}.png`))
+  }
+  const res = await fetch(`${base(p)}/images/edits`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${p.apiKey}` },
+    body: fd,
+  })
+  if (!res.ok) throw new Error(await readError(res))
+  const data = await res.json()
+  const item = data?.data?.[0]
+  if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`
+  if (item?.url) return item.url as string
+  throw new Error('接口返回格式异常：没有 data[0].b64_json 或 data[0].url')
 }
 
 function blobToDataURL(blob: Blob): Promise<string> {
