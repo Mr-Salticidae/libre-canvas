@@ -72,7 +72,10 @@ export function ProjectsPanel() {
       >
         + 新建画布
       </button>
-      <p className="hint">每块画布独立保存在本机浏览器里，切换时自动保存。</p>
+      <p className="hint">
+        每块画布独立保存在本机浏览器（IndexedDB）里，切换时自动保存。
+        清除浏览器"网站数据"会连画布一起清掉——重要画布请用工具栏「导出」备份成 JSON 文件。
+      </p>
       <button className="modal-close" onClick={() => setOpen(false)}>
         ✕
       </button>
