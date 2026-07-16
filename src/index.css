@@ -269,24 +269,43 @@ label {
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- 右侧属性面板 ---------- */
+/* ---------- 浮动属性面板（跟随选中节点） ---------- */
 .inspector {
   position: fixed;
-  top: 14px;
-  right: 14px;
-  width: 300px;
-  max-height: calc(100vh - 28px);
+  max-height: calc(100vh - 24px);
   overflow-y: auto;
   background: color-mix(in srgb, var(--paper-2) 94%, transparent);
   border: 1px solid var(--line);
   border-radius: 16px;
-  padding: 18px;
+  padding: 14px 16px;
   z-index: 10;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   backdrop-filter: saturate(1.4) blur(10px);
   box-shadow: 0 14px 34px -18px rgba(var(--shadow), 0.45);
+}
+
+/* 选中媒体卡片时的浮动操作条 */
+.node-bar {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: color-mix(in srgb, var(--paper-2) 92%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 8px;
+  z-index: 10;
+  backdrop-filter: saturate(1.4) blur(10px);
+  box-shadow: 0 14px 34px -18px rgba(var(--shadow), 0.45);
+}
+
+.node-bar button {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.8rem;
+  white-space: nowrap;
 }
 
 .inspector h3 {
@@ -395,6 +414,12 @@ label {
 
 .prompt-wrap {
   position: relative;
+}
+
+.row2 {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 6px;
 }
 
 .at-menu {

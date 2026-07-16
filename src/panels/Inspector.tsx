@@ -22,7 +22,27 @@ const MODEL_PLACEHOLDER: Record<GenMode, string> = {
   audio: '如 gpt-4o-mini-tts / tts-1',
 }
 
-/** 右侧属性面板：选中单个生成节点时出现 */
+/** 浮动面板：跟随选中节点，出现在节点下方；放不下则翻到上方（bottom 锚定，无需精确估高） */
+function floatStyle(
+  node: { x: number; y: number; width: number; height: number },
+  camera: { x: number; y: number; scale: number },
+  panelW: number,
+  estH: number,
+): React.CSSProperties {
+  const sx = node.x * camera.scale + camera.x
+  const sy = node.y * camera.scale + camera.y
+  const nodeW = node.width * camera.scale
+  const nodeH = node.height * camera.scale
+  let left = sx + nodeW / 2 - panelW / 2
+  left = Math.max(12, Math.min(left, window.innerWidth - panelW - 12))
+  const below = sy + nodeH + 14
+  if (below + estH <= window.innerHeight - 12) {
+    return { left, top: below, width: panelW }
+  }
+  // 贴着节点上缘向上展开
+  return { left, bottom: Math.max(12, window.innerHeight - sy + 14), width: panelW }
+}
+
 export function Inspector() {
   const selection = useStore((s) => s.selection)
   const nodes = useStore((s) => s.nodes)
@@ -33,19 +53,27 @@ export function Inspector() {
   const removeEdge = useStore((s) => s.removeEdge)
   const providers = useProviders((s) => s.providers)
   const setSettingsOpen = useUI((s) => s.setSettingsOpen)
+  const camera = useUI((s) => s.camera)
   const [atOpen, setAtOpen] = useState(false)
 
   const node = selection.length === 1 ? nodes[selection[0]] : undefined
 
   if (node && node.type === 'image' && node.src) {
     return (
-      <div className="inspector">
-        <h3>🖼 图片</h3>
-        {node.name && <p className="hint">{node.name}</p>}
+      <div className="node-bar" style={floatStyle(node, camera, 224, 48)}>
         <button className="primary" onClick={() => useUI.getState().setMaskEditingId(node.id)}>
           🖌 局部重绘
         </button>
-        <p className="hint">涂抹指定区域，用提示词重新生成该区域（inpainting）。</p>
+        <button
+          onClick={() => {
+            const a = document.createElement('a')
+            a.href = node.src!
+            a.download = node.name || 'librecanvas-image.png'
+            a.click()
+          }}
+        >
+          ⤓ 下载
+        </button>
       </div>
     )
   }
@@ -152,10 +180,9 @@ export function Inspector() {
   }
 
   return (
-    <div className="inspector">
+    <div className="inspector" style={floatStyle(node, camera, 340, 430)}>
       <h3>✦ AI 生成节点</h3>
 
-      <label>生成类型</label>
       <div className="seg">
         {MODES.map((m) => (
           <button
@@ -168,37 +195,37 @@ export function Inspector() {
         ))}
       </div>
 
-      <label>提供商</label>
+      <label>提供商 / 模型</label>
       {providers.length === 0 ? (
         <button className="link" onClick={() => setSettingsOpen(true)}>
           还没有配置提供商，点这里去设置 →
         </button>
       ) : (
-        <select
-          value={provider?.id ?? ''}
-          onChange={(e) => updateNode(node.id, { providerId: e.target.value })}
-        >
-          {providers.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      )}
-
-      <label>模型</label>
-      <input
-        list={`models-${provider?.id ?? 'none'}`}
-        value={node.model ?? ''}
-        placeholder={MODEL_PLACEHOLDER[node.mode ?? 'image']}
-        onChange={(e) => updateNode(node.id, { model: e.target.value })}
-      />
-      {provider && (
-        <datalist id={`models-${provider.id}`}>
-          {provider.models.map((m) => (
-            <option key={m} value={m} />
-          ))}
-        </datalist>
+        <div className="row2">
+          <select
+            value={provider?.id ?? ''}
+            onChange={(e) => updateNode(node.id, { providerId: e.target.value })}
+          >
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <input
+            list={`models-${provider?.id ?? 'none'}`}
+            value={node.model ?? ''}
+            placeholder={MODEL_PLACEHOLDER[node.mode ?? 'image']}
+            onChange={(e) => updateNode(node.id, { model: e.target.value })}
+          />
+          {provider && (
+            <datalist id={`models-${provider.id}`}>
+              {provider.models.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          )}
+        </div>
       )}
 
       <label>引用（{refEdges.length}）</label>
@@ -252,7 +279,7 @@ export function Inspector() {
       <label>{node.mode === 'audio' ? '朗读文本' : '提示词'}</label>
       <div className="prompt-wrap">
         <textarea
-          rows={7}
+          rows={3}
           value={node.prompt ?? ''}
           placeholder={node.mode === 'audio' ? '输入要转成语音的文字…' : '描述你想生成的内容…（@ 引用画布卡片）'}
           onChange={(e) => updateNode(node.id, { prompt: e.target.value })}
@@ -289,7 +316,6 @@ export function Inspector() {
       </button>
 
       {node.status === 'error' && <p className="error">{node.error}</p>}
-      <p className="hint">结果会作为新卡片出现在节点右侧，并用虚线记录生成来源。</p>
     </div>
   )
 }

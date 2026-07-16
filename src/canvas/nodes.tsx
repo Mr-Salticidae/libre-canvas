@@ -466,7 +466,7 @@ export function GenNode({ node, selected }: NodeProps) {
         fontFamily={CANVAS_FONT}
       />
       <Text
-        text={node.prompt ? node.prompt.slice(0, 90) + (node.prompt.length > 90 ? '…' : '') : '选中后在右侧面板填写提示词'}
+        text={node.prompt ? node.prompt.slice(0, 90) + (node.prompt.length > 90 ? '…' : '') : '选中后在下方面板填写提示词'}
         x={16}
         y={38}
         width={node.width - 30}
