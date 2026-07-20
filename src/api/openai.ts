@@ -20,10 +20,32 @@ async function readError(res: Response): Promise<string> {
   }
 }
 
+/**
+ * 浏览器 fetch 本身没有超时——服务商网络抖动、被内容审核悄悄卡住、
+ * 或中转站掉线不回包时，请求会无限挂起，UI 只能显示永远的"生成中"。
+ * 统一走这个封装，超时会抛出可读错误而不是让节点卡死。
+ */
+async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 90_000): Promise<Response> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...opts, signal: ctrl.signal })
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(
+        `请求超时（${Math.round(timeoutMs / 1000)} 秒无响应）：可能是网络问题、提示词触发了内容审核、或服务商繁忙，可以换个提示词或稍后重试`,
+      )
+    }
+    throw e
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** 测试连通性：GET /models */
 export async function testProvider(p: Provider): Promise<{ ok: boolean; message: string }> {
   try {
-    const res = await fetch(`${base(p)}/models`, { headers: headers(p) })
+    const res = await fetchWithTimeout(`${base(p)}/models`, { headers: headers(p) }, 20_000)
     if (!res.ok) return { ok: false, message: await readError(res) }
     const data = await res.json()
     const count = Array.isArray(data?.data) ? data.data.length : 0
@@ -34,7 +56,7 @@ export async function testProvider(p: Provider): Promise<{ ok: boolean; message:
 }
 
 async function fetchModelIds(p: Provider, query = ''): Promise<string[]> {
-  const res = await fetch(`${base(p)}/models${query}`, { headers: headers(p) })
+  const res = await fetchWithTimeout(`${base(p)}/models${query}`, { headers: headers(p) }, 20_000)
   if (!res.ok) throw new Error(await readError(res))
   const data = await res.json()
   return (Array.isArray(data?.data) ? data.data : [])
@@ -43,8 +65,34 @@ async function fetchModelIds(p: Provider, query = ''): Promise<string[]> {
 }
 
 /**
+ * 按模型 id 的命名规律粗判所属模态。多数提供商（含 OpenAI）的 /models 不区分模态，
+ * 一股脑把 chat/completion/embedding/tts/image 等模型全混在一个列表里返回。
+ */
+function matchesMode(id: string, mode: string): boolean {
+  const s = id.toLowerCase()
+  const isImage = /image|dall-?e|cogview|kolors|flux|diffusion|sdxl|\bsd3\b|midjourney/.test(s)
+  const isAudio = /tts|speech|whisper|\baudio\b/.test(s)
+  const isVideo = /sora|seedance|\bvideo\b|vidu|kling|hailuo|cogvideo|wan\d*(-|\.)?(t2v|i2v)/.test(s)
+  // 纯 legacy completion / embedding / moderation：/chat/completions 用不了，任何模式都不该出现
+  const isNonChatUtility = /embedding|moderation|rerank|-instruct$|^davinci-|^babbage-|^curie-|^ada-/.test(s)
+  if (isNonChatUtility) return false
+  switch (mode) {
+    case 'image':
+      return isImage
+    case 'audio':
+      return isAudio
+    case 'video':
+      return isVideo
+    default:
+      return !isImage && !isAudio && !isVideo
+  }
+}
+
+/**
  * 拉取该提供商真实可用的模型列表：GET /models。
- * 硅基流动的 /models 默认只返回文本模型，图片/视频/音频模型必须带 ?type= 才列得出来。
+ * 硅基流动的 /models 默认只返回文本模型，图片/视频/音频模型必须带 ?type= 才列得出来；
+ * OpenAI 等多数提供商则完全不按模态筛选，返回的是账号可访问的全部模型混在一起——
+ * 两种情况都靠 matchesMode 按模型名做一次客户端兜底过滤。
  */
 export async function listModels(p: Provider, mode?: string): Promise<string[]> {
   const ids = await fetchModelIds(p)
@@ -56,7 +104,11 @@ export async function listModels(p: Provider, mode?: string): Promise<string[]> 
       // 分类查询失败就只用默认列表，不影响主流程
     }
   }
-  return [...new Set(ids)].sort()
+  const unique = [...new Set(ids)]
+  if (!mode) return unique.sort()
+  const filtered = unique.filter((id) => matchesMode(id, mode))
+  // 过滤后一个不剩，说明这家的命名规律没猜中——宁可全展示也别让用户看着空列表
+  return (filtered.length > 0 ? filtered : unique).sort()
 }
 
 /** 文生文：POST /chat/completions。带参考图时按多模态 content 传入（视觉理解） */
@@ -73,14 +125,18 @@ export async function generateText(
           ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
         ]
       : prompt
-  const res = await fetch(`${base(p)}/chat/completions`, {
-    method: 'POST',
-    headers: headers(p),
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content }],
-    }),
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/chat/completions`,
+    {
+      method: 'POST',
+      headers: headers(p),
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content }],
+      }),
+    },
+    180_000,
+  )
   if (!res.ok) throw new Error(await readError(res))
   const data = await res.json()
   const text = data?.choices?.[0]?.message?.content
@@ -100,7 +156,7 @@ function dataURLToBlob(dataURL: string): Blob {
 /** dataURL 直接转；远程 URL 先抓成 Blob（可能受对方 CORS 限制） */
 async function srcToBlob(src: string): Promise<Blob> {
   if (src.startsWith('data:')) return dataURLToBlob(src)
-  const res = await fetch(src)
+  const res = await fetchWithTimeout(src, {}, 60_000)
   if (!res.ok) throw new Error(`拉取图片失败：HTTP ${res.status}`)
   return res.blob()
 }
@@ -130,11 +186,15 @@ export async function generateImageEdit(
   } else {
     blobs.forEach((b, i) => fd.append('image[]', b, `ref-${i}.png`))
   }
-  const res = await fetch(`${base(p)}/images/edits`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${p.apiKey}` },
-    body: fd,
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/images/edits`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${p.apiKey}` },
+      body: fd,
+    },
+    180_000,
+  )
   return parseImageResult(res)
 }
 
@@ -151,11 +211,15 @@ export async function generateImageInpaint(
   fd.append('prompt', prompt)
   fd.append('image', await srcToBlob(image), 'image.png')
   fd.append('mask', dataURLToBlob(mask), 'mask.png')
-  const res = await fetch(`${base(p)}/images/edits`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${p.apiKey}` },
-    body: fd,
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/images/edits`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${p.apiKey}` },
+      body: fd,
+    },
+    180_000,
+  )
   return parseImageResult(res)
 }
 
@@ -175,11 +239,15 @@ export async function generateSpeech(
   input: string,
   voice: string,
 ): Promise<string> {
-  const res = await fetch(`${base(p)}/audio/speech`, {
-    method: 'POST',
-    headers: headers(p),
-    body: JSON.stringify({ model, input, voice: voice || 'alloy' }),
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/audio/speech`,
+    {
+      method: 'POST',
+      headers: headers(p),
+      body: JSON.stringify({ model, input, voice: voice || 'alloy' }),
+    },
+    120_000,
+  )
   if (!res.ok) throw new Error(await readError(res))
   const blob = await res.blob()
   if (blob.type.includes('json')) {
@@ -215,11 +283,11 @@ async function generateVideoSiliconFlow(
     image_size: '1280x720',
   }
   if (hasImage) body.image = refs.images![0]
-  const res = await fetch(`${base(p)}/video/submit`, {
-    method: 'POST',
-    headers: headers(p),
-    body: JSON.stringify(body),
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/video/submit`,
+    { method: 'POST', headers: headers(p), body: JSON.stringify(body) },
+    60_000,
+  )
   if (!res.ok) throw new Error(await readError(res))
   const submit = await res.json()
   const requestId = submit?.requestId
@@ -229,11 +297,11 @@ async function generateVideoSiliconFlow(
   while (true) {
     if (Date.now() - startedAt > 15 * 60_000) throw new Error('视频任务超时（15 分钟）')
     await sleep(5000)
-    const poll = await fetch(`${base(p)}/video/status`, {
-      method: 'POST',
-      headers: headers(p),
-      body: JSON.stringify({ requestId }),
-    })
+    const poll = await fetchWithTimeout(
+      `${base(p)}/video/status`,
+      { method: 'POST', headers: headers(p), body: JSON.stringify({ requestId }) },
+      30_000,
+    )
     if (!poll.ok) throw new Error(await readError(poll))
     const job = await poll.json()
     if (job?.status === 'Succeed') {
@@ -270,11 +338,11 @@ async function generateVideoArk(
   ]
   const body: Record<string, unknown> = { model, content }
   if (/seedance-2/i.test(model)) body.generate_audio = true
-  const res = await fetch(`${base(p)}/contents/generations/tasks`, {
-    method: 'POST',
-    headers: headers(p),
-    body: JSON.stringify(body),
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/contents/generations/tasks`,
+    { method: 'POST', headers: headers(p), body: JSON.stringify(body) },
+    60_000,
+  )
   if (!res.ok) throw new Error(await readError(res))
   const created = await res.json()
   const id = created?.id
@@ -284,7 +352,11 @@ async function generateVideoArk(
   while (true) {
     if (Date.now() - startedAt > 15 * 60_000) throw new Error('视频任务超时（15 分钟）')
     await sleep(5000)
-    const poll = await fetch(`${base(p)}/contents/generations/tasks/${id}`, { headers: headers(p) })
+    const poll = await fetchWithTimeout(
+      `${base(p)}/contents/generations/tasks/${id}`,
+      { headers: headers(p) },
+      30_000,
+    )
     if (!poll.ok) throw new Error(await readError(poll))
     const job = await poll.json()
     if (job?.status === 'succeeded') {
@@ -323,11 +395,11 @@ export async function generateVideo(
   if (/volces\.com/i.test(p.baseURL)) {
     return generateVideoArk(p, model, prompt, refs, onProgress)
   }
-  const res = await fetch(`${base(p)}/videos`, {
-    method: 'POST',
-    headers: headers(p),
-    body: JSON.stringify({ model, prompt }),
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/videos`,
+    { method: 'POST', headers: headers(p), body: JSON.stringify({ model, prompt }) },
+    60_000,
+  )
   if (!res.ok) throw new Error(await readError(res))
   let job = await res.json()
 
@@ -347,7 +419,7 @@ export async function generateVideo(
     const pct = job?.progress != null ? ` ${job.progress}%` : ''
     onProgress?.(`视频生成中（${job.status}${pct}）…`)
     await sleep(5000)
-    const poll = await fetch(`${base(p)}/videos/${id}`, { headers: headers(p) })
+    const poll = await fetchWithTimeout(`${base(p)}/videos/${id}`, { headers: headers(p) }, 30_000)
     if (!poll.ok) throw new Error(await readError(poll))
     job = await poll.json()
   }
@@ -355,24 +427,24 @@ export async function generateVideo(
     throw new Error(`视频任务失败：${job?.error?.message ?? job?.status ?? '未知状态'}`)
   }
   onProgress?.('下载视频…')
-  const content = await fetch(`${base(p)}/videos/${id}/content`, { headers: headers(p) })
+  const content = await fetchWithTimeout(`${base(p)}/videos/${id}/content`, { headers: headers(p) }, 120_000)
   if (!content.ok) throw new Error(await readError(content))
   return blobToDataURL(await content.blob())
 }
 
 async function fetchMediaAsDataURL(url: string): Promise<string> {
-  const res = await fetch(url)
+  const res = await fetchWithTimeout(url, {}, 120_000)
   if (!res.ok) throw new Error(`下载媒体失败：HTTP ${res.status}`)
   return blobToDataURL(await res.blob())
 }
 
 /** 文生图：POST /images/generations，返回 dataURL 或 URL */
 export async function generateImage(p: Provider, model: string, prompt: string): Promise<string> {
-  const res = await fetch(`${base(p)}/images/generations`, {
-    method: 'POST',
-    headers: headers(p),
-    body: JSON.stringify({ model, prompt, n: 1 }),
-  })
+  const res = await fetchWithTimeout(
+    `${base(p)}/images/generations`,
+    { method: 'POST', headers: headers(p), body: JSON.stringify({ model, prompt, n: 1 }) },
+    180_000,
+  )
   if (!res.ok) throw new Error(await readError(res))
   const data = await res.json()
   const item = data?.data?.[0]

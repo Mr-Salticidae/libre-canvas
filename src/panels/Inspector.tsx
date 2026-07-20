@@ -186,10 +186,11 @@ export function Inspector() {
     }
   }
 
-  // 候选 = 拉取到的真实列表（优先）∪ 设置里配的常用模型；输入框内容兼作搜索词
-  const allModels = provider
-    ? [...new Set([...(fetchedModels[modelsKey] ?? []), ...provider.models])]
-    : []
+  // 「常用模型」是设置里配的一份通用列表，不区分模式（文本/图片/视频共用同一份）。
+  // 一旦按当前模式实拉过（fetched 有值，服务端已按 type 过滤），就只信实拉结果，
+  // 否则别的模式配的模型（如文本模型）会混进视频列表；没拉过时才拿它垫底展示。
+  const fetched = provider ? fetchedModels[modelsKey] : undefined
+  const allModels = fetched ?? provider?.models ?? []
   const query = (node.model ?? '').trim().toLowerCase()
   const modelOptions =
     query && !allModels.some((m) => m.toLowerCase() === query)
