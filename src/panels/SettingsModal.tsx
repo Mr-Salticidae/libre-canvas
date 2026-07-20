@@ -7,8 +7,9 @@ import { testProvider } from '../api/openai'
 const PRESETS: { name: string; baseURL: string; models: string }[] = [
   { name: 'OpenAI', baseURL: 'https://api.openai.com/v1', models: 'gpt-4o-mini, gpt-image-1' },
   { name: 'DeepSeek', baseURL: 'https://api.deepseek.com/v1', models: 'deepseek-chat' },
-  { name: '硅基流动', baseURL: 'https://api.siliconflow.cn/v1', models: 'Kwai-Kolors/Kolors' },
+  { name: '硅基流动', baseURL: 'https://api.siliconflow.cn/v1', models: 'Kwai-Kolors/Kolors, deepseek-ai/DeepSeek-V3' },
   { name: '智谱 AI', baseURL: 'https://open.bigmodel.cn/api/paas/v4', models: 'glm-4-flash, cogview-3-flash' },
+  { name: '火山方舟', baseURL: 'https://ark.cn-beijing.volces.com/api/v3', models: 'doubao-seedance-2-0-260128' },
 ]
 
 function emptyProvider(): Provider {

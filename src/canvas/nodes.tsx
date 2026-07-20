@@ -127,12 +127,32 @@ function useImage(src?: string) {
   return img
 }
 
+/** 卡片右侧连线锚点：hover/选中时出现，拖到生成节点即成参考输入 */
+function ConnectAnchor({ node, visible }: { node: CanvasNode; visible: boolean }) {
+  const pal = usePalette()
+  const setConnecting = useUI((s) => s.setConnecting)
+  if (!visible) return null
+  return (
+    <Circle
+      x={node.width}
+      y={node.height / 2}
+      radius={8}
+      fill={pal.accent}
+      stroke={pal.paper2}
+      strokeWidth={1.5}
+      onMouseDown={(e) => {
+        e.cancelBubble = true
+        setConnecting({ fromId: node.id, x: node.x + node.width, y: node.y + node.height / 2 })
+      }}
+    />
+  )
+}
+
 export function ImageNode({ node, selected }: NodeProps) {
   const pal = usePalette()
   const img = useImage(node.src)
   const h = useNodeHandlers(node)
   const [hovered, setHovered] = useState(false)
-  const setConnecting = useUI((s) => s.setConnecting)
 
   return (
     <Group
@@ -179,25 +199,7 @@ export function ImageNode({ node, selected }: NodeProps) {
           listening={false}
         />
       )}
-      {(hovered || selected) && (
-        <Circle
-          x={node.width}
-          y={node.height / 2}
-          radius={8}
-          fill={pal.accent}
-          stroke={pal.paper2}
-          strokeWidth={1.5}
-          onMouseDown={(e) => {
-            // 拦截住，别触发卡片拖拽/画布平移；由 CanvasStage 接管连线
-            e.cancelBubble = true
-            setConnecting({
-              fromId: node.id,
-              x: node.x + node.width,
-              y: node.y + node.height / 2,
-            })
-          }}
-        />
-      )}
+      <ConnectAnchor node={node} visible={hovered || selected} />
     </Group>
   )
 }
@@ -240,6 +242,8 @@ export function VideoNode({ node, selected }: NodeProps) {
   const [playing, setPlaying] = useState(false)
   const [ready, setReady] = useState(false)
   const groupRef = useRef<Konva.Group>(null)
+
+  const [hovered, setHovered] = useState(false)
 
   const video = useMemo(() => {
     if (!node.src) return undefined
@@ -302,7 +306,15 @@ export function VideoNode({ node, selected }: NodeProps) {
   }
 
   return (
-    <Group ref={groupRef} x={node.x} y={node.y} draggable {...h}>
+    <Group
+      ref={groupRef}
+      x={node.x}
+      y={node.y}
+      draggable
+      {...h}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <Rect
         width={node.width}
         height={node.height}
@@ -330,6 +342,7 @@ export function VideoNode({ node, selected }: NodeProps) {
         />
       )}
       <PlayButton x={26} y={node.height - 26} playing={playing} onToggle={toggle} />
+      <ConnectAnchor node={node} visible={hovered || selected} />
     </Group>
   )
 }
@@ -338,6 +351,7 @@ export function AudioNode({ node, selected }: NodeProps) {
   const pal = usePalette()
   const h = useNodeHandlers(node)
   const [playing, setPlaying] = useState(false)
+  const [hovered, setHovered] = useState(false)
 
   const audio = useMemo(() => {
     if (!node.src) return undefined
@@ -368,7 +382,14 @@ export function AudioNode({ node, selected }: NodeProps) {
   }
 
   return (
-    <Group x={node.x} y={node.y} draggable {...h}>
+    <Group
+      x={node.x}
+      y={node.y}
+      draggable
+      {...h}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <Rect
         width={node.width}
         height={node.height}
@@ -394,6 +415,7 @@ export function AudioNode({ node, selected }: NodeProps) {
         fontFamily={CANVAS_FONT}
       />
       <PlayButton x={node.width - 32} y={node.height / 2} playing={playing} onToggle={toggle} />
+      <ConnectAnchor node={node} visible={hovered || selected} />
     </Group>
   )
 }
@@ -560,7 +582,7 @@ export function GenNode({ node, selected }: NodeProps) {
         x={16}
         y={38}
         width={node.width - 30}
-        height={node.height - 38 - (statusText ? 28 : 14)}
+        height={node.height - 38 - (statusText ? 46 : 14)}
         fill={node.prompt ? pal.ink : pal.inkSoft}
         fontSize={12}
         lineHeight={1.55}
@@ -569,14 +591,16 @@ export function GenNode({ node, selected }: NodeProps) {
       />
       {statusText && (
         <Text
-          text={statusText.slice(0, 60)}
+          text={statusText.slice(0, 180)}
           x={16}
-          y={node.height - 24}
+          y={node.height - 42}
           width={node.width - 30}
+          height={34}
           fill={statusColor}
           fontSize={11}
+          lineHeight={1.4}
           ellipsis
-          wrap="none"
+          wrap="word"
           fontFamily={CANVAS_FONT}
         />
       )}
