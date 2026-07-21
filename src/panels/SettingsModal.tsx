@@ -130,6 +130,19 @@ export function SettingsModal() {
             />
             <label>常用模型（逗号分隔，生成时可下拉选择）</label>
             <input value={modelsText} onChange={(e) => setModelsText(e.target.value)} placeholder="gpt-4o-mini, gpt-image-1" />
+            {import.meta.env.DEV && (
+              <label className="proxy-toggle">
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft.useProxy)}
+                  onChange={(e) => setDraft({ ...draft, useProxy: e.target.checked })}
+                />
+                <span>
+                  通过本地代理转发（解决官方 OpenAI 等接口的浏览器跨域限制）。请求经本机 dev server
+                  中转再发往提供商，Key 仍只在本机、不上传任何外部服务器。仅 <code>npm run dev</code> 时可用。
+                </span>
+              </label>
+            )}
             <div className="form-actions">
               <button onClick={() => void test()} disabled={testing}>
                 {testing ? '测试中…' : '测试连接'}

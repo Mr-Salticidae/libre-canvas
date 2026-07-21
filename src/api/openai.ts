@@ -1,13 +1,32 @@
 import type { Provider } from '../types'
 
-function base(p: Provider): string {
+function cleanBase(p: Provider): string {
   return p.baseURL.replace(/\/+$/, '')
+}
+
+/**
+ * 是否走本地开发代理。官方 OpenAI 等接口不返回 CORS 头，浏览器直连会被拦；开启后请求改发
+ * 同源的 /__cors，由 dev server（vite.config.ts 里的 corsProxy 中间件）转发到真实地址。
+ * 仅 dev 有效——打包部署的静态版本没有 dev server，此时退回直连。
+ */
+function proxied(p: Provider): boolean {
+  return Boolean(p.useProxy) && import.meta.env.DEV
+}
+
+function base(p: Provider): string {
+  return proxied(p) ? '/__cors' : cleanBase(p)
+}
+
+/** 走代理时把真实目标地址放进请求头，dev server 据此转发 */
+function proxyHeader(p: Provider): Record<string, string> {
+  return proxied(p) ? { 'x-cors-target': cleanBase(p) } : {}
 }
 
 function headers(p: Provider): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${p.apiKey}`,
+    ...proxyHeader(p),
   }
 }
 
@@ -212,7 +231,7 @@ export async function generateImageEdit(
     `${base(p)}/images/edits`,
     {
       method: 'POST',
-      headers: { Authorization: `Bearer ${p.apiKey}` },
+      headers: { Authorization: `Bearer ${p.apiKey}`, ...proxyHeader(p) },
       body: fd,
     },
     180_000,
@@ -237,7 +256,7 @@ export async function generateImageInpaint(
     `${base(p)}/images/edits`,
     {
       method: 'POST',
-      headers: { Authorization: `Bearer ${p.apiKey}` },
+      headers: { Authorization: `Bearer ${p.apiKey}`, ...proxyHeader(p) },
       body: fd,
     },
     180_000,

@@ -831,6 +831,29 @@ label {
   margin-top: 12px;
 }
 
+.proxy-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft, #666);
+  cursor: pointer;
+}
+
+.proxy-toggle input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.proxy-toggle code {
+  font-family: ui-monospace, monospace;
+  background: rgba(127, 127, 127, 0.12);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
 /* ---------- 蒙版重绘编辑器 ---------- */
 .mask-editor {
   display: flex;

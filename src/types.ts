@@ -45,6 +45,8 @@ export interface Provider {
   apiKey: string
   /** 可选模型列表，逗号分隔填写 */
   models: string[]
+  /** 走本地开发代理转发，绕开浏览器对官方 OpenAI 等接口的 CORS 限制（仅 npm run dev 生效） */
+  useProxy?: boolean
 }
 
 export interface Doc {
