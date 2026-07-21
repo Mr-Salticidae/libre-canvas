@@ -36,6 +36,12 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs =
         `请求超时（${Math.round(timeoutMs / 1000)} 秒无响应）：可能是网络问题、提示词触发了内容审核、或服务商繁忙，可以换个提示词或稍后重试`,
       )
     }
+    // fetch 网络层失败只会抛一句英文 "Failed to fetch"，看不出是断网还是跨域，翻译成可排查的提示
+    if (e instanceof TypeError) {
+      throw new Error(
+        '网络请求失败（Failed to fetch）：可能是网络断开、接口地址填错，或该提供商不允许浏览器跨域直连（CORS）——可在设置里点「测试连接」排查',
+      )
+    }
     throw e
   } finally {
     clearTimeout(timer)
@@ -156,9 +162,16 @@ function dataURLToBlob(dataURL: string): Blob {
 /** dataURL 直接转；远程 URL 先抓成 Blob（可能受对方 CORS 限制） */
 async function srcToBlob(src: string): Promise<Blob> {
   if (src.startsWith('data:')) return dataURLToBlob(src)
-  const res = await fetchWithTimeout(src, {}, 60_000)
-  if (!res.ok) throw new Error(`拉取图片失败：HTTP ${res.status}`)
-  return res.blob()
+  try {
+    const res = await fetchWithTimeout(src, {}, 60_000)
+    if (!res.ok) throw new Error(`拉取参考图失败：HTTP ${res.status}`)
+    return await res.blob()
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('拉取参考图失败')) throw e
+    throw new Error(
+      '拉取参考图失败：这张参考图存的是远程链接，可能已过期或图床不允许跨域。可以把它下载后重新上传到画布再连线',
+    )
+  }
 }
 
 async function parseImageResult(res: Response): Promise<string> {
@@ -166,7 +179,16 @@ async function parseImageResult(res: Response): Promise<string> {
   const data = await res.json()
   const item = data?.data?.[0]
   if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`
-  if (item?.url) return item.url as string
+  if (item?.url) {
+    // 结果链接通常约 1 小时过期，且图床多半不放行 CORS——留着它当卡片 src，
+    // 之后连线当参考图时 srcToBlob 必然拉不动。趁现在能下就抓成 dataURL 存死；
+    // CDN 不放行跨域时才退回原始链接
+    try {
+      return await fetchMediaAsDataURL(item.url as string)
+    } catch {
+      return item.url as string
+    }
+  }
   throw new Error('接口返回格式异常：没有 data[0].b64_json 或 data[0].url')
 }
 
@@ -445,10 +467,5 @@ export async function generateImage(p: Provider, model: string, prompt: string):
     { method: 'POST', headers: headers(p), body: JSON.stringify({ model, prompt, n: 1 }) },
     180_000,
   )
-  if (!res.ok) throw new Error(await readError(res))
-  const data = await res.json()
-  const item = data?.data?.[0]
-  if (item?.b64_json) return `data:image/png;base64,${item.b64_json}`
-  if (item?.url) return item.url as string
-  throw new Error('接口返回格式异常：没有 data[0].b64_json 或 data[0].url')
+  return parseImageResult(res)
 }
