@@ -15,6 +15,16 @@ export interface Connecting {
   y: number
 }
 
+/** 后台任务（目前用于本地后处理：超分+补帧）。画布左下角有面板显示进度 */
+export interface UiJob {
+  id: string
+  label: string
+  /** 0~100 */
+  progress: number
+  state: 'running' | 'done' | 'error'
+  note?: string
+}
+
 interface UIState {
   camera: Camera
   setCamera: (c: Camera) => void
@@ -39,6 +49,11 @@ interface UIState {
   /** 右键菜单：屏幕坐标 + 命中的节点（空白处为 undefined） */
   contextMenu: { x: number; y: number; nodeId?: string } | null
   setContextMenu: (m: { x: number; y: number; nodeId?: string } | null) => void
+  /** 后台任务表，key 为任务 id */
+  jobs: Record<string, UiJob>
+  setJob: (j: UiJob) => void
+  patchJob: (id: string, patch: Partial<UiJob>) => void
+  removeJob: (id: string) => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -60,6 +75,16 @@ export const useUI = create<UIState>((set) => ({
   requestPromptFocus: () => set((s) => ({ promptFocusTick: s.promptFocusTick + 1 })),
   contextMenu: null,
   setContextMenu: (contextMenu) => set({ contextMenu }),
+  jobs: {},
+  setJob: (j) => set((s) => ({ jobs: { ...s.jobs, [j.id]: j } })),
+  patchJob: (id, patch) =>
+    set((s) => (s.jobs[id] ? { jobs: { ...s.jobs, [id]: { ...s.jobs[id], ...patch } } } : s)),
+  removeJob: (id) =>
+    set((s) => {
+      const jobs = { ...s.jobs }
+      delete jobs[id]
+      return { jobs }
+    }),
 }))
 
 /** 屏幕坐标 → 世界坐标 */

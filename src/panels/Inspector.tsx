@@ -227,7 +227,15 @@ export function Inspector() {
         ? `${prompt}\n\n【引用资料】\n${refTextContents.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
         : prompt
 
-    updateNode(node.id, { status: 'running', error: undefined, progress: undefined })
+    updateNode(node.id, {
+      status: 'running',
+      error: undefined,
+      // 本地生成动辄十几分钟，先把预期写在节点上，别让用户以为卡死
+      progress:
+        provider.kind === 'comfyui'
+          ? `预计 ${presetById(model)?.hint ?? '5~15 分钟'}，正在上传首帧…`
+          : undefined,
+    })
     const outPos = { x: node.x + node.width + 80, y: node.y }
     try {
       if (node.mode === 'text') {
@@ -348,8 +356,8 @@ export function Inspector() {
               onClick={() => {
                 const next = !modelOpen
                 setModelOpen(next)
-                // 首次展开自动拉一次真实列表，省得用户再点一下
-                if (next && provider && !fetchedModels[modelsKey] && !modelsLoading) {
+                // 首次展开自动拉一次真实列表，省得用户再点一下；本地 ComfyUI 没有 /models，不拉
+                if (next && provider && !isComfy && !fetchedModels[modelsKey] && !modelsLoading) {
                   void loadModels(provider)
                 }
               }}
@@ -374,7 +382,7 @@ export function Inspector() {
                   </button>
                 )}
               </div>
-              {modelsError && <p className="hint error">{modelsError}</p>}
+              {!isComfy && modelsError && <p className="hint error">{modelsError}</p>}
               {modelOptions.length === 0 && !modelsLoading && (
                 <p className="hint">没有模型可选，点上方「拉取可用模型」，或直接在输入框手输模型名。</p>
               )}
@@ -394,6 +402,13 @@ export function Inspector() {
             </div>
           )}
         </div>
+      )}
+
+      {isComfy && presetById(node.model ?? '') && (
+        <p className="hint">
+          {presetById(node.model!)!.label} · {presetById(node.model!)!.hint}
+          {presetById(node.model!)!.audio ? ' · 自带 H3 原生音轨' : ' · 无音轨'}
+        </p>
       )}
 
       <label>引用（{refEdges.length}）</label>

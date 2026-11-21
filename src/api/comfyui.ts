@@ -310,13 +310,20 @@ async function poll(p: Provider, id: string, onProgress?: (m: string) => void): 
       if (st === 'success' || entry.status?.completed) return entry
       if (st === 'error') throw new Error('ComfyUI 执行失败：' + JSON.stringify(entry.status?.messages ?? {}).slice(0, 400))
     }
-    // 队列里排第几，给用户一点"它在动"的反馈
+    // 队列里排第几、已经跑了多久，给用户一点"它在动"的反馈
     try {
       const q = await jfetch(`${base(p)}/queue`, {}, 15_000)
       if (q.ok) {
         const qd = await q.json()
-        const running = Array.isArray(qd?.queue_running) ? qd.queue_running.length : 0
-        const note = running > 0 ? '生成中（8GB 卡单镜约 5~15 分钟）…' : '排队中…'
+        const running: unknown[][] = Array.isArray(qd?.queue_running) ? qd.queue_running : []
+        const pending: unknown[][] = Array.isArray(qd?.queue_pending) ? qd.queue_pending : []
+        const mins = Math.floor((Date.now() - started) / 60_000)
+        const isMine = running.some((item) => Array.isArray(item) && item[1] === id)
+        const pos = pending.findIndex((item) => Array.isArray(item) && item[1] === id)
+        let note: string
+        if (isMine) note = `生成中 · 已 ${mins} 分钟（8GB 卡单镜 5~15 分钟）…`
+        else if (pos >= 0) note = `排队中 · 前面还有 ${pos} 个任务，已等 ${mins} 分钟…`
+        else note = `生成中 · 已 ${mins} 分钟…`
         if (note !== lastNote) {
           onProgress?.(note)
           lastNote = note

@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { fitView, toWorld, useUI } from '../ui'
 import { copySelection, duplicateSelection, hasClipboard, pasteClipboard } from '../clipboard'
 import { iterateFromNode } from '../branch'
+import { postProcessNode } from '../post'
 import { createGeneratorNode } from '../canvas/CanvasStage'
 import { uid } from '../types'
 
@@ -71,6 +72,16 @@ export function ContextMenu() {
           {node.type === 'image' &&
             node.src &&
             item('局部重绘', () => useUI.getState().setMaskEditingId(node.id))}
+          {node.type === 'video' &&
+            node.src &&
+            item('✦ 出 1080p 母版（超分+补帧）', () => {
+              void postProcessNode(node.id, { target: '1920x1080', fps: 60 })
+            })}
+          {node.type === 'video' &&
+            node.src &&
+            item('✦ 出 1080p / 24fps 母版', () => {
+              void postProcessNode(node.id, { target: '1920x1080', fps: 24 })
+            })}
           {node.type === 'text' && item('编辑文本', () => useUI.getState().setEditingId(node.id))}
           {selection.length > 1 && item('编组', () => S.groupSelected(), { kbd: 'Ctrl+G' })}
           {anyGrouped && item('解组', () => S.ungroupSelected(), { kbd: 'Ctrl+Shift+G' })}
