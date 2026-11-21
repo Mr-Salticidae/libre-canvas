@@ -53,8 +53,48 @@ function corsProxy(): Plugin {
   }
 }
 
+/**
+ * 本地 ComfyUI 反向代理。ComfyUI 默认不放 CORS 头，浏览器直连会被拦；
+ * 开发期把 /__comfy/* 原样转发到本机 8188，前端就当同源接口用。
+ * 目标地址可用环境变量 LIBRE_COMFY 覆盖（例如跑在另一台机器上）。
+ */
+function comfyProxy(): Plugin {
+  const target = (process.env.LIBRE_COMFY || 'http://127.0.0.1:8188').replace(/\/+$/, '')
+  return {
+    name: 'libre-canvas-comfy-proxy',
+    configureServer(server) {
+      server.middlewares.use('/__comfy', (req, res) => {
+        void (async () => {
+          const url = target + (req.url || '')
+          const chunks: Buffer[] = []
+          for await (const c of req) chunks.push(Buffer.from(c))
+          const hasBody = req.method !== 'GET' && req.method !== 'HEAD' && chunks.length > 0
+          const fwd: Record<string, string> = {}
+          if (req.headers['content-type']) fwd['content-type'] = String(req.headers['content-type'])
+          try {
+            const upstream = await fetch(url, {
+              method: req.method,
+              headers: fwd,
+              body: hasBody ? Buffer.concat(chunks) : undefined,
+            })
+            res.statusCode = upstream.status
+            const ct = upstream.headers.get('content-type')
+            if (ct) res.setHeader('content-type', ct)
+            const cl = upstream.headers.get('content-length')
+            if (cl) res.setHeader('content-length', cl)
+            res.end(Buffer.from(await upstream.arrayBuffer()))
+          } catch (e) {
+            res.statusCode = 502
+            res.end('ComfyUI 代理转发失败（服务没起？）：' + (e instanceof Error ? e.message : String(e)))
+          }
+        })()
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), corsProxy()],
+  plugins: [react(), corsProxy(), comfyProxy()],
   server: {
     port: 5173,
     strictPort: true,

@@ -3,6 +3,7 @@ import { useProviders } from '../providers'
 import { useUI } from '../ui'
 import { uid, type Provider } from '../types'
 import { testProvider } from '../api/openai'
+import { presetIds, testComfy } from '../api/comfyui'
 
 const PRESETS: { name: string; baseURL: string; models: string }[] = [
   { name: 'OpenAI', baseURL: 'https://api.openai.com/v1', models: 'gpt-4o-mini, gpt-image-1' },
@@ -14,6 +15,18 @@ const PRESETS: { name: string; baseURL: string; models: string }[] = [
 
 function emptyProvider(): Provider {
   return { id: uid(), name: '', baseURL: '', apiKey: '', models: [] }
+}
+
+/** 本地 ComfyUI：模型名是 H3 预设 id，由 comfyui.ts 定义，不需要 /models 接口 */
+function comfyProvider(): Provider {
+  return {
+    id: uid(),
+    name: '本地 ComfyUI（H3）',
+    kind: 'comfyui',
+    baseURL: 'http://127.0.0.1:8188',
+    apiKey: '',
+    models: presetIds(),
+  }
 }
 
 export function SettingsModal() {
@@ -55,7 +68,7 @@ export function SettingsModal() {
     if (!draft) return
     setTesting(true)
     setTestMsg(null)
-    setTestMsg(await testProvider({ ...draft, models: [] }))
+    setTestMsg(draft.kind === 'comfyui' ? await testComfy(draft) : await testProvider({ ...draft, models: [] }))
     setTesting(false)
   }
 
@@ -95,6 +108,7 @@ export function SettingsModal() {
               <button className="primary" onClick={() => edit(emptyProvider())}>
                 + 添加提供商
               </button>
+              <button onClick={() => edit(comfyProvider())}>本地 ComfyUI（H3）</button>
               {PRESETS.map((preset) => (
                 <button
                   key={preset.name}
@@ -118,19 +132,39 @@ export function SettingsModal() {
           <div className="provider-form">
             <label>名称</label>
             <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="如 OpenAI / 我的中转站" />
-            <label>Base URL（OpenAI 兼容，一般以 /v1 结尾）</label>
-            <input value={draft.baseURL} onChange={(e) => setDraft({ ...draft, baseURL: e.target.value })} placeholder="https://api.openai.com/v1" />
-            <label>API Key</label>
-            <input
-              type="password"
-              value={draft.apiKey}
-              onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-              placeholder="sk-…"
-              autoComplete="off"
-            />
-            <label>常用模型（逗号分隔，生成时可下拉选择）</label>
-            <input value={modelsText} onChange={(e) => setModelsText(e.target.value)} placeholder="gpt-4o-mini, gpt-image-1" />
-            {import.meta.env.DEV && (
+            {draft.kind === 'comfyui' ? (
+              <>
+                <label>ComfyUI 地址</label>
+                <input
+                  value={draft.baseURL}
+                  onChange={(e) => setDraft({ ...draft, baseURL: e.target.value })}
+                  placeholder="http://127.0.0.1:8188"
+                />
+                <p className="hint">
+                  本地 ComfyUI（MiniMax H3 产线），不需要 API Key。开发模式经 dev server 的 /__comfy
+                  代理转发，所以 ComfyUI 不用开 CORS；打包成静态站点后直连，需要给 ComfyUI 加
+                  <code> --enable-cors-header</code>。
+                </p>
+                <label>H3 预设（也可以留空，节点里再选）</label>
+                <p className="hint">{modelsText || '（会用内置的四档 H3 预设）'}</p>
+              </>
+            ) : (
+              <>
+                <label>Base URL（OpenAI 兼容，一般以 /v1 结尾）</label>
+                <input value={draft.baseURL} onChange={(e) => setDraft({ ...draft, baseURL: e.target.value })} placeholder="https://api.openai.com/v1" />
+                <label>API Key</label>
+                <input
+                  type="password"
+                  value={draft.apiKey}
+                  onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
+                  placeholder="sk-…"
+                  autoComplete="off"
+                />
+                <label>常用模型（逗号分隔，生成时可下拉选择）</label>
+                <input value={modelsText} onChange={(e) => setModelsText(e.target.value)} placeholder="gpt-4o-mini, gpt-image-1" />
+              </>
+            )}
+            {import.meta.env.DEV && draft.kind !== 'comfyui' && (
               <label className="proxy-toggle">
                 <input
                   type="checkbox"

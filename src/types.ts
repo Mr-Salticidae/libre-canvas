@@ -40,7 +40,9 @@ export interface Edge {
 export interface Provider {
   id: string
   name: string
-  /** OpenAI 兼容接口的 base URL，通常以 /v1 结尾 */
+  /** openai = OpenAI 兼容接口；comfyui = 本地 ComfyUI（H3 产线） */
+  kind?: 'openai' | 'comfyui'
+  /** OpenAI 兼容接口的 base URL，通常以 /v1 结尾；ComfyUI 则是 http://127.0.0.1:8188 */
   baseURL: string
   apiKey: string
   /** 可选模型列表，逗号分隔填写 */

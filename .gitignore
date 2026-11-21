@@ -2,3 +2,6 @@ node_modules
 dist
 *.local
 .DS_Store
+
+# 本地验证产物
+test-out.mp4

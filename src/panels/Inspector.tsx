@@ -11,6 +11,7 @@ import {
   generateVideo,
   listModels,
 } from '../api/openai'
+import { generateComfyVideo, presetById, presetIds } from '../api/comfyui'
 import { fitSize, loadImage, loadVideoMeta } from '../helpers'
 import { iterateFromNode } from '../branch'
 import { MODE_LABEL } from '../canvas/nodes'
@@ -189,8 +190,10 @@ export function Inspector() {
   // 「常用模型」是设置里配的一份通用列表，不区分模式（文本/图片/视频共用同一份）。
   // 一旦按当前模式实拉过（fetched 有值，服务端已按 type 过滤），就只信实拉结果，
   // 否则别的模式配的模型（如文本模型）会混进视频列表；没拉过时才拿它垫底展示。
+  // 本地 ComfyUI 没有 /models，模型名就是一条条 H3 预设。
+  const isComfy = provider?.kind === 'comfyui'
   const fetched = provider ? fetchedModels[modelsKey] : undefined
-  const allModels = fetched ?? provider?.models ?? []
+  const allModels = isComfy ? presetIds() : (fetched ?? provider?.models ?? [])
   const query = (node.model ?? '').trim().toLowerCase()
   const modelOptions =
     query && !allModels.some((m) => m.toLowerCase() === query)
@@ -238,9 +241,14 @@ export function Inspector() {
           videos: videoRefs.map((r) => r.from!.src!),
           audios: audioRefs.map((r) => r.from!.src!),
         }
-        const src = await generateVideo(provider, model, fullPrompt, refs, (msg) =>
-          updateNode(node.id, { progress: msg }),
-        )
+        const src =
+          provider.kind === 'comfyui'
+            ? await generateComfyVideo(provider, model, fullPrompt, refs, (msg) =>
+                updateNode(node.id, { progress: msg }),
+              )
+            : await generateVideo(provider, model, fullPrompt, refs, (msg) =>
+                updateNode(node.id, { progress: msg }),
+              )
         const { width, height } = await loadVideoMeta(src)
         const out = { id: uid(), type: 'video' as const, ...outPos, width, height, src, name: prompt.slice(0, 30) }
         addNode(out, { history: false })
@@ -309,7 +317,7 @@ export function Inspector() {
               const next = providers.find((p) => p.id === e.target.value)
               updateNode(node.id, {
                 providerId: e.target.value,
-                model: next?.models[0] ?? '',
+                model: next?.kind === 'comfyui' ? presetIds()[0] : (next?.models[0] ?? ''),
                 status: undefined,
                 error: undefined,
               })
@@ -324,7 +332,7 @@ export function Inspector() {
           <div className="model-field">
             <input
               value={node.model ?? ''}
-              placeholder={MODEL_PLACEHOLDER[node.mode ?? 'image']}
+              placeholder={isComfy ? '选一个 H3 预设' : MODEL_PLACEHOLDER[node.mode ?? 'image']}
               spellCheck={false}
               autoComplete="off"
               onChange={(e) => updateNode(node.id, { model: e.target.value })}
@@ -353,16 +361,18 @@ export function Inspector() {
             <div className="model-menu">
               <div className="model-menu-head">
                 <span>
-                  {modelOptions.length} 个{MODE_LABEL[node.mode ?? 'image']}模型
-                  {fetchedModels[modelsKey] ? '（来自接口）' : ''}
+                  {modelOptions.length} 个{isComfy ? 'H3 预设' : `${MODE_LABEL[node.mode ?? 'image']}模型`}
+                  {!isComfy && fetchedModels[modelsKey] ? '（来自接口）' : ''}
                 </span>
-                <button
-                  className="link"
-                  disabled={modelsLoading}
-                  onClick={() => void loadModels(provider)}
-                >
-                  {modelsLoading ? '拉取中…' : '⟳ 拉取可用模型'}
-                </button>
+                {!isComfy && (
+                  <button
+                    className="link"
+                    disabled={modelsLoading}
+                    onClick={() => void loadModels(provider)}
+                  >
+                    {modelsLoading ? '拉取中…' : '⟳ 拉取可用模型'}
+                  </button>
+                )}
               </div>
               {modelsError && <p className="hint error">{modelsError}</p>}
               {modelOptions.length === 0 && !modelsLoading && (
@@ -372,13 +382,13 @@ export function Inspector() {
                 <button
                   key={m}
                   className={m === node.model ? 'active' : ''}
-                  title={m}
+                  title={isComfy ? `${m}${presetById(m) ? ' · ' + presetById(m)!.hint : ''}` : m}
                   onClick={() => {
                     updateNode(node.id, { model: m })
                     setModelOpen(false)
                   }}
                 >
-                  {m}
+                  {isComfy ? (presetById(m)?.label ?? m) : m}
                 </button>
               ))}
             </div>
