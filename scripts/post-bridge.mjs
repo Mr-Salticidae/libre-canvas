@@ -158,7 +158,9 @@ const server = createServer((req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/qc') {
-    const expect = url.searchParams.get('expect') || '1920x1080'
+    // 不传 expect/fps 就只做结构检查（黑屏/冻帧/静音/兼容），不判分辨率与帧率——
+    // 手动质检多半是查原片，拿 1080p60 的规格去卡它只会造成误报
+    const expect = url.searchParams.get('expect') || ''
     const fps = url.searchParams.get('fps') || ''
     const audio = url.searchParams.get('audio') || 'any'
     const dir = mkdtempSync(join(tmpdir(), 'libre-qc-'))
@@ -167,7 +169,8 @@ const server = createServer((req, res) => {
     req.pipe(ws)
     ws.on('error', (e) => json(res, 500, { error: String(e) }))
     ws.on('finish', () => {
-      const args = [QC_SCRIPT, file, '--json', '--expect', expect, '--audio', audio]
+      const args = [QC_SCRIPT, file, '--json', '--audio', audio]
+      if (expect) args.push('--expect', expect)
       if (fps) args.push('--fps', fps)
       const child = spawn(PYTHON, args, {
         windowsHide: true,

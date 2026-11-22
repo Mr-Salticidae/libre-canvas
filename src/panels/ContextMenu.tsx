@@ -3,7 +3,7 @@ import { useStore } from '../store'
 import { fitView, toWorld, useUI } from '../ui'
 import { copySelection, duplicateSelection, hasClipboard, pasteClipboard } from '../clipboard'
 import { iterateFromNode } from '../branch'
-import { postProcessNode } from '../post'
+import { postProcessNode, postProcessBatch, qcBatch } from '../post'
 import { createGeneratorNode } from '../canvas/CanvasStage'
 import { uid } from '../types'
 
@@ -31,6 +31,7 @@ export function ContextMenu() {
   const world = toWorld(camera, menu.x, menu.y)
   const S = useStore.getState()
   const anyGrouped = selection.some((id) => nodes[id]?.groupId)
+  const videoSel = selection.filter((id) => nodes[id]?.type === 'video' && nodes[id]?.src)
 
   const item = (label: string, action: () => void, opts?: { disabled?: boolean; kbd?: string }) => (
     <button
@@ -72,6 +73,14 @@ export function ContextMenu() {
           {node.type === 'image' &&
             node.src &&
             item('局部重绘', () => useUI.getState().setMaskEditingId(node.id))}
+          {videoSel.length > 1 &&
+            item(`✦ 批量出 1080p 母版（${videoSel.length} 张）`, () => {
+              void postProcessBatch(videoSel, { target: '1920x1080', fps: 60 })
+            })}
+          {videoSel.length > 1 &&
+            item(`⌕ 批量质检（${videoSel.length} 张，只查黑屏/冻帧/静音）`, () => {
+              void qcBatch(videoSel)
+            })}
           {node.type === 'video' &&
             node.src &&
             item('✦ 出 1080p 母版（超分+补帧）', () => {
@@ -90,6 +99,14 @@ export function ContextMenu() {
         </>
       ) : (
         <>
+          {videoSel.length > 1 &&
+            item(`✦ 批量出 1080p 母版（${videoSel.length} 张）`, () => {
+              void postProcessBatch(videoSel, { target: '1920x1080', fps: 60 })
+            })}
+          {videoSel.length > 1 &&
+            item(`⌕ 批量质检（${videoSel.length} 张，只查黑屏/冻帧/静音）`, () => {
+              void qcBatch(videoSel)
+            })}
           {item('粘贴到此处', () => pasteClipboard(world), { disabled: !hasClipboard(), kbd: 'Ctrl+V' })}
           <div className="cm-divider" />
           {item('新建生成节点', () => {

@@ -136,7 +136,7 @@ export function Inspector() {
           <button
             className={node.qc ? (node.qc.ok ? 'qc-chip ok' : 'qc-chip bad') : 'qc-chip'}
             title={qcTitle}
-            onClick={() => void qcNode(node.id, { target: '1920x1080', fps: 60 })}
+            onClick={() => void qcNode(node.id)}
           >
             {node.qc
               ? node.qc.ok
