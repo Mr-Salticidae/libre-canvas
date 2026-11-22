@@ -28,6 +28,8 @@ export interface CanvasNode {
   groupId?: string
   /** running 时的进度提示（如视频任务轮询状态） */
   progress?: string
+  /** 本地质检结果（黑屏/冻帧/静音/兼容），视频卡右上角显示徽标 */
+  qc?: { ok: boolean; fails: string[]; warns: string[]; at: number }
 }
 
 /** 轻连线：记录生成血缘（生成节点 → 产物） */

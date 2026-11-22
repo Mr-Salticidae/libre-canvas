@@ -17,6 +17,65 @@ export interface PostOptions {
   target?: string
   fps?: number
   motionBlur?: boolean
+  /** 处理完自动跑质检（默认开） */
+  qc?: boolean
+}
+
+export interface QcResult {
+  ok: boolean
+  fails: string[]
+  warns: string[]
+  facts?: Record<string, unknown>
+}
+
+/** 调后处理桥跑一次成片质检（黑屏 / 冻帧 / 静音 / 削波 / 手机兼容） */
+export async function checkVideo(
+  src: string,
+  opts: { target?: string; fps?: number; audio?: boolean } = {},
+): Promise<QcResult> {
+  const blob = await dataURLToBlob(src)
+  const qs = new URLSearchParams({
+    expect: opts.target ?? '1920x1080',
+    fps: String(opts.fps ?? 60),
+  })
+  // canvas 不知道这一镜"该不该有声音"，所以默认 any：有音轨就查静音/削波，没有也不判失败
+  if (opts.audio === true) qs.set('audio', 'yes')
+  else if (opts.audio === false) qs.set('audio', 'no')
+  const res = await bridgeFetch(`/qc?${qs.toString()}`, {
+    method: 'POST',
+    headers: { 'content-type': blob.type || 'video/mp4' },
+    body: blob,
+  }, 10 * 60_000)
+  if (!res.ok) throw new Error(`质检桥拒绝：HTTP ${res.status}`)
+  return (await res.json()) as QcResult
+}
+
+/** 对一张已有的视频卡跑质检，结果写回节点（右上角徽标） */
+export async function qcNode(nodeId: string, opts: { target?: string; fps?: number; audio?: boolean } = {}): Promise<void> {
+  const store = useStore.getState()
+  const node = store.nodes[nodeId]
+  if (!node || node.type !== 'video' || !node.src) throw new Error('这张卡不是可质检的视频')
+  const ui = useUI.getState()
+  const jobId = 'qc-' + uid()
+  ui.setJob({ id: jobId, label: `质检 ${node.name || '视频'}`, progress: 20, state: 'running', note: '检查中…' })
+  try {
+    const qc = await checkVideo(node.src, opts)
+    useStore.getState().updateNode(nodeId, { qc: { ...qc, at: Date.now() } })
+    useUI.getState().patchJob(jobId, {
+      state: qc.ok ? 'done' : 'error',
+      progress: 100,
+      note: qc.ok
+        ? `通过${qc.warns.length ? `（${qc.warns.length} 条提示）` : ''}`
+        : qc.fails[0] ?? '不通过',
+    })
+    setTimeout(() => useUI.getState().removeJob(jobId), 6000)
+  } catch (e) {
+    useUI.getState().patchJob(jobId, {
+      state: 'error',
+      progress: 100,
+      note: (e instanceof Error ? e.message : String(e)).slice(0, 120),
+    })
+  }
 }
 
 async function dataURLToBlob(src: string): Promise<Blob> {
@@ -116,7 +175,23 @@ export async function postProcessNode(nodeId: string, opts: PostOptions = {}): P
     }
     cur.addNode(out)
     cur.addEdge({ id: uid(), from: node.id, to: out.id })
-    useUI.getState().patchJob(jobId, { state: 'done', progress: 100, note: '完成' })
+    useUI.getState().patchJob(jobId, { progress: 99, note: '质检中…' })
+
+    // 出片即质检：黑屏/冻帧/静音这类问题当场标在卡片上，不用等人工发现
+    let qcNote = '完成'
+    if (opts.qc !== false) {
+      try {
+        const qc = await checkVideo(dataURL, { target, fps })
+        useStore.getState().updateNode(out.id, { qc: { ...qc, at: Date.now() } })
+        qcNote = qc.ok
+          ? `完成 · 质检通过${qc.warns.length ? `（${qc.warns.length} 条提示）` : ''}`
+          : `完成 · 质检不通过：${qc.fails[0] ?? ''}`
+      } catch (e) {
+        qcNote = '完成（质检没跑成：' + (e instanceof Error ? e.message : String(e)).slice(0, 40) + '）'
+      }
+    }
+
+    useUI.getState().patchJob(jobId, { state: 'done', progress: 100, note: qcNote })
     setTimeout(() => useUI.getState().removeJob(jobId), 8000)
   } catch (e) {
     useUI.getState().patchJob(jobId, {

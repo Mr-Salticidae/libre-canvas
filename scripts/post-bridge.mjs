@@ -1,15 +1,17 @@
-// 本地后处理桥：画布里的「出 1080p 母版」按钮通过它调用产线脚本
+// 本地后处理桥：画布里的「出 1080p 母版」/「质检」通过它调用产线脚本
 //
 //   POST /post?target=1920x1080&fps=60&blur=1   请求体是视频二进制
 //     → { id }
 //   GET  /status?id=xxx                          → { state, progress, note }
 //   GET  /result?id=xxx                          → 处理好的 mp4
+//   POST /qc?expect=1920x1080&fps=60&audio=yes  请求体是视频二进制
+//     → { ok, fails[], warns[], facts{} }        （同步返回，几秒）
 //
 // 起法：node scripts/post-bridge.mjs
-// 可配环境变量：PORT / PYTHON / POST_SCRIPT / H3_TOOL_DIR
+// 可配环境变量：PORT / PYTHON / POST_SCRIPT / QC_SCRIPT
 
 import { createServer } from 'node:http'
-import { mkdtempSync, createWriteStream, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, createWriteStream, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
@@ -18,6 +20,8 @@ const PORT = Number(process.env.PORT || 8791)
 const PYTHON = process.env.PYTHON || 'C:/Users/Administrator/AppData/Local/Python/bin/python.exe'
 const POST_SCRIPT =
   process.env.POST_SCRIPT || 'D:/AIGC工作站/99_工具/minimax_h3_tool/scripts/post_1080p60.py'
+const QC_SCRIPT =
+  process.env.QC_SCRIPT || 'D:/AIGC工作站/99_工具/minimax_h3_tool/scripts/quality_check.py'
 
 /** id → { state, progress, note, dir, out, error } */
 const jobs = new Map()
@@ -150,6 +154,44 @@ const server = createServer((req, res) => {
     } catch (e) {
       json(res, 500, { error: '读取结果失败：' + String(e) })
     }
+    return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/qc') {
+    const expect = url.searchParams.get('expect') || '1920x1080'
+    const fps = url.searchParams.get('fps') || ''
+    const audio = url.searchParams.get('audio') || 'any'
+    const dir = mkdtempSync(join(tmpdir(), 'libre-qc-'))
+    const file = join(dir, 'in.mp4')
+    const ws = createWriteStream(file)
+    req.pipe(ws)
+    ws.on('error', (e) => json(res, 500, { error: String(e) }))
+    ws.on('finish', () => {
+      const args = [QC_SCRIPT, file, '--json', '--expect', expect, '--audio', audio]
+      if (fps) args.push('--fps', fps)
+      const child = spawn(PYTHON, args, {
+        windowsHide: true,
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' },
+      })
+      let out = ''
+      let err = ''
+      child.stdout.on('data', (d) => (out += d))
+      child.stderr.on('data', (d) => (err += d))
+      child.on('exit', () => {
+        try {
+          const qc = JSON.parse(out.trim().split(/\r?\n/).pop())
+          json(res, 200, qc)
+        } catch {
+          json(res, 200, {
+            ok: false,
+            fails: ['质检脚本输出无法解析：' + (err || out).slice(-300)],
+            warns: [],
+            facts: {},
+          })
+        }
+        rmSync(dir, { recursive: true, force: true })
+      })
+    })
     return
   }
 

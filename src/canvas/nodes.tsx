@@ -342,6 +342,26 @@ export function VideoNode({ node, selected }: NodeProps) {
         />
       )}
       <PlayButton x={26} y={node.height - 26} playing={playing} onToggle={toggle} />
+      {node.qc && (
+        <Group x={node.width - 56} y={12}>
+          <Rect
+            width={44}
+            height={20}
+            cornerRadius={10}
+            fill={node.qc.ok ? 'rgba(63,158,110,0.92)' : 'rgba(255,107,107,0.92)'}
+          />
+          <Text
+            text={node.qc.ok ? (node.qc.warns.length > 0 ? `⚠${node.qc.warns.length}` : '✓') : '✕'}
+            width={44}
+            height={20}
+            align="center"
+            verticalAlign="middle"
+            fontSize={12}
+            fill="#fff"
+            fontFamily={CANVAS_FONT}
+          />
+        </Group>
+      )}
       <ConnectAnchor node={node} visible={hovered || selected} />
     </Group>
   )

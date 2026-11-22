@@ -12,6 +12,7 @@ import {
   listModels,
 } from '../api/openai'
 import { generateComfyVideo, presetById, presetIds } from '../api/comfyui'
+import { qcNode } from '../post'
 import { fitSize, loadImage, loadVideoMeta } from '../helpers'
 import { iterateFromNode } from '../branch'
 import { MODE_LABEL } from '../canvas/nodes'
@@ -121,7 +122,33 @@ export function Inspector() {
           {download}
         </>
       )
-    } else if ((node.type === 'video' || node.type === 'audio') && node.src) {
+    } else if (node.type === 'video' && node.src) {
+      barW = 420
+      const qcTitle = node.qc
+        ? [
+            node.qc.ok ? '质检通过' : '质检不通过',
+            ...node.qc.fails.map((f) => '✕ ' + f),
+            ...node.qc.warns.map((w) => '⚠ ' + w),
+          ].join('\n')
+        : '检查黑屏 / 冻帧 / 静音 / 削波 / 手机兼容'
+      actions = (
+        <>
+          <button
+            className={node.qc ? (node.qc.ok ? 'qc-chip ok' : 'qc-chip bad') : 'qc-chip'}
+            title={qcTitle}
+            onClick={() => void qcNode(node.id, { target: '1920x1080', fps: 60 })}
+          >
+            {node.qc
+              ? node.qc.ok
+                ? `✓ 质检通过${node.qc.warns.length ? ` (${node.qc.warns.length})` : ''}`
+                : `✕ 质检不通过${node.qc.fails.length ? ` (${node.qc.fails.length})` : ''}`
+              : '⌕ 质检'}
+          </button>
+          {download}
+        </>
+      )
+    } else if (node.type === 'audio' && node.src) {
+      barW = 120
       actions = download
     } else if (node.type === 'text') {
       barW = 176
