@@ -1,5 +1,6 @@
 import type { Provider } from '../types'
 import type { VideoRefs } from './openai'
+import { bridgeFetch } from '../bridge'
 
 /**
  * 本地 ComfyUI（MiniMax H3 产线）适配层。
@@ -120,7 +121,9 @@ async function jfetch(url: string, opts: RequestInit = {}, timeoutMs = 60_000): 
     if (e instanceof TypeError) {
       throw new Error(
         '连不上 ComfyUI：确认 `python_embeded\\python.exe -s ComfyUI\\main.py --lowvram ...` 已启动，' +
-          '且地址是 http://127.0.0.1:8188（开发模式走 dev server 代理，重启 dev server 生效）',
+          '且地址是 http://127.0.0.1:8188。' +
+          'ComfyUI 没起的话，在设置里点「启动 ComfyUI」即可（走本机桥，不用回命令行）。' +
+          '开发模式下请求经 dev server 的 /__comfy 代理转发。',
       )
     }
     throw e
@@ -141,6 +144,32 @@ export async function testComfy(p: Provider): Promise<{ ok: boolean; message: st
     }
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** 通过本机桥查 ComfyUI 是否在跑（不走 /__comfy 代理，服务没起时代理只会回 502） */
+export async function comfyServerStatus(): Promise<{ up: boolean; version?: string; detail?: string }> {
+  try {
+    const res = await bridgeFetch('/comfy/status', {}, 8_000)
+    return (await res.json()) as { up: boolean; version?: string; detail?: string }
+  } catch (e) {
+    return { up: false, detail: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/** 让本机桥把 ComfyUI 拉起来（已经在跑就直接返回；最多等 3 分钟） */
+export async function startComfyServer(): Promise<{
+  state: 'already' | 'started' | 'timeout' | 'error'
+  seconds?: number
+  version?: string
+  error?: string
+}> {
+  const res = await bridgeFetch('/comfy/start', { method: 'POST' }, 200_000)
+  return (await res.json()) as {
+    state: 'already' | 'started' | 'timeout' | 'error'
+    seconds?: number
+    version?: string
+    error?: string
   }
 }
 

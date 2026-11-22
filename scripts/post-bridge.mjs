@@ -23,6 +23,15 @@ const POST_SCRIPT =
 const QC_SCRIPT =
   process.env.QC_SCRIPT || 'D:/AIGC工作站/99_工具/minimax_h3_tool/scripts/quality_check.py'
 
+/** 本地 ComfyUI：给画布一个「启动服务器」的开关，省得回命令行 */
+const COMFY_DIR = process.env.COMFY_DIR || 'C:/ComfyUI-H3/ComfyUI_windows_portable'
+const COMFY_PY = process.env.COMFY_PY || join(COMFY_DIR, 'python_embeded', 'python.exe')
+const COMFY_ARGS = (
+  process.env.COMFY_ARGS ||
+  '-s ComfyUI/main.py --windows-standalone-build --lowvram --async-offload --reserve-vram 0.6'
+).split(/\s+/)
+const COMFY_URL = process.env.COMFY_URL || 'http://127.0.0.1:8188'
+
 /** id → { state, progress, note, dir, out, error } */
 const jobs = new Map()
 
@@ -99,7 +108,7 @@ function startJob(tmpDir, args, target) {
   return id
 }
 
-const server = createServer((req, res) => {
+const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://127.0.0.1:${PORT}`)
   if (req.method === 'OPTIONS') {
     cors(res)
@@ -195,6 +204,66 @@ const server = createServer((req, res) => {
         rmSync(dir, { recursive: true, force: true })
       })
     })
+    return
+  }
+
+  if (req.method === 'GET' && url.pathname === '/comfy/status') {
+    try {
+      const r = await fetch(`${COMFY_URL}/system_stats`, { signal: AbortSignal.timeout(4000) })
+      if (!r.ok) return json(res, 200, { up: false, detail: `HTTP ${r.status}` })
+      const s = await r.json()
+      return json(res, 200, {
+        up: true,
+        version: s?.system?.comfyui_version,
+        vramTotal: s?.system?.vram_total,
+      })
+    } catch (e) {
+      return json(res, 200, { up: false, detail: String(e).slice(0, 120) })
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/comfy/start') {
+    void (async () => {
+      // 已经在跑就直接回，避免重复起进程抢 8188
+      try {
+        const probe = await fetch(`${COMFY_URL}/system_stats`, { signal: AbortSignal.timeout(3000) })
+        if (probe.ok) return json(res, 200, { state: 'already' })
+      } catch {
+        // 没起，继续
+      }
+      try {
+        const { spawn: spawnDetached } = await import('node:child_process')
+        const child = spawnDetached(COMFY_PY, COMFY_ARGS, {
+          cwd: COMFY_DIR,
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true,
+        })
+        child.unref()
+        console.log(`[post-bridge] 启动 ComfyUI pid=${child.pid}`)
+      } catch (e) {
+        return json(res, 500, { state: 'error', error: String(e) })
+      }
+      // 等服务真的起来（模型不加载，通常 30~60 秒）
+      const t0 = Date.now()
+      while (Date.now() - t0 < 180_000) {
+        await new Promise((r) => setTimeout(r, 3000))
+        try {
+          const probe = await fetch(`${COMFY_URL}/system_stats`, { signal: AbortSignal.timeout(3000) })
+          if (probe.ok) {
+            const s = await probe.json()
+            return json(res, 200, {
+              state: 'started',
+              seconds: Math.round((Date.now() - t0) / 1000),
+              version: s?.system?.comfyui_version,
+            })
+          }
+        } catch {
+          // 还没起来
+        }
+      }
+      json(res, 200, { state: 'timeout', error: '180 秒内没起来，去看 ComfyUI 窗口的报错' })
+    })()
     return
   }
 

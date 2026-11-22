@@ -2,6 +2,7 @@ import { useStore } from './store'
 import { useUI } from './ui'
 import { uid, type CanvasNode } from './types'
 import { loadVideoMeta } from './helpers'
+import { bridgeFetch } from './bridge'
 
 /**
  * 本地后处理：把画布上的视频卡送进本机产线脚本（Real-ESRGAN 超分 + RIFE 补帧 → 1080p），
@@ -11,7 +12,7 @@ import { loadVideoMeta } from './helpers'
  * HTTP 服务，接收视频二进制、调用 post_1080p60.py / quality_check.py、回报进度、把成片吐回来。
  */
 
-const BRIDGE = (import.meta.env.VITE_POST_BRIDGE as string | undefined) || 'http://127.0.0.1:8791'
+
 
 export interface PostOptions {
   target?: string
@@ -42,20 +43,7 @@ function blobToDataURL(blob: Blob): Promise<string> {
   })
 }
 
-async function bridgeFetch(path: string, init?: RequestInit, timeoutMs = 60_000): Promise<Response> {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
-  try {
-    return await fetch(`${BRIDGE}${path}`, { ...init, signal: ctrl.signal })
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') throw new Error('后处理桥超时')
-    throw new Error(
-      '连不上后处理桥：请先在项目目录跑 `npm run post:bridge`（默认 http://127.0.0.1:8791）',
-    )
-  } finally {
-    clearTimeout(timer)
-  }
-}
+
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 

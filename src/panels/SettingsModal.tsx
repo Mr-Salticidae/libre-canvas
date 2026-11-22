@@ -3,7 +3,7 @@ import { useProviders } from '../providers'
 import { useUI } from '../ui'
 import { uid, type Provider } from '../types'
 import { testProvider } from '../api/openai'
-import { presetIds, testComfy } from '../api/comfyui'
+import { presetIds, testComfy, comfyServerStatus, startComfyServer } from '../api/comfyui'
 
 const PRESETS: { name: string; baseURL: string; models: string }[] = [
   { name: 'OpenAI', baseURL: 'https://api.openai.com/v1', models: 'gpt-4o-mini, gpt-image-1' },
@@ -40,6 +40,30 @@ export function SettingsModal() {
   const [modelsText, setModelsText] = useState('')
   const [testMsg, setTestMsg] = useState<{ ok: boolean; message: string } | null>(null)
   const [testing, setTesting] = useState(false)
+  /** 本地 ComfyUI 服务状态（只在编辑 comfyui 提供商时查） */
+  const [comfyStatus, setComfyStatus] = useState<{ up: boolean; version?: string; detail?: string } | null>(null)
+  const [comfyBusy, setComfyBusy] = useState(false)
+
+  const refreshComfy = async () => {
+    setComfyStatus(await comfyServerStatus())
+  }
+
+  const bootComfy = async () => {
+    setComfyBusy(true)
+    setComfyStatus(null)
+    try {
+      const r = await startComfyServer()
+      if (r.state === 'already') setTestMsg({ ok: true, message: 'ComfyUI 已经在跑了' })
+      else if (r.state === 'started')
+        setTestMsg({ ok: true, message: `ComfyUI 已启动（${r.seconds ?? '?'} 秒${r.version ? `，版本 ${r.version}` : ''}）` })
+      else setTestMsg({ ok: false, message: r.error || '启动超时，去看 ComfyUI 窗口的报错' })
+    } catch (e) {
+      setTestMsg({ ok: false, message: e instanceof Error ? e.message : String(e) })
+    } finally {
+      setComfyBusy(false)
+      void refreshComfy()
+    }
+  }
 
   if (!open) return null
 
@@ -47,6 +71,10 @@ export function SettingsModal() {
     setDraft({ ...p })
     setModelsText(p.models.join(', '))
     setTestMsg(null)
+    if (p.kind === 'comfyui') {
+      setComfyStatus(null)
+      void refreshComfy()
+    }
   }
 
   const commit = () => {
@@ -144,6 +172,26 @@ export function SettingsModal() {
                   本地 ComfyUI（MiniMax H3 产线），不需要 API Key。开发模式经 dev server 的 /__comfy
                   代理转发，所以 ComfyUI 不用开 CORS；打包成静态站点后直连，需要给 ComfyUI 加
                   <code> --enable-cors-header</code>。
+                </p>
+                <label>本地服务</label>
+                <div className="row2" style={{ alignItems: 'center', gap: 8 }}>
+                  <span className={comfyStatus?.up ? 'ok' : 'error'} style={{ fontSize: '0.78rem' }}>
+                    {comfyStatus === null
+                      ? '查询中…'
+                      : comfyStatus.up
+                        ? `ComfyUI${comfyStatus.version ? ` ${comfyStatus.version}` : ''} 在跑`
+                        : '没在跑'}
+                  </span>
+                  <button onClick={() => void bootComfy()} disabled={comfyBusy || Boolean(comfyStatus?.up)}>
+                    {comfyBusy ? '启动中（约 30~60 秒）…' : '启动 ComfyUI'}
+                  </button>
+                  <button onClick={() => void refreshComfy()} disabled={comfyBusy}>
+                    ⟳ 刷新
+                  </button>
+                </div>
+                <p className="hint">
+                  「启动」走本机桥（<code>npm run post:bridge</code>）拉起 ComfyUI，参数是本机 8GB 配方
+                  <code> --lowvram --async-offload --reserve-vram 0.6</code>。桥没起时这个按钮会报连不上。
                 </p>
                 <label>H3 预设（也可以留空，节点里再选）</label>
                 <p className="hint">{modelsText || '（会用内置的四档 H3 预设）'}</p>
