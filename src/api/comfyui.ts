@@ -19,6 +19,7 @@ import { bridgeFetch } from '../bridge'
 export interface H3Preset {
   id: string
   label: string
+  kind: 'video'
   /** 生成分辨率，必须是 32 的倍数，0.4~0.52MP 是 8GB 卡的安全区 */
   width: number
   height: number
@@ -32,10 +33,63 @@ export interface H3Preset {
   hint: string
 }
 
+export interface ImagePreset {
+  id: string
+  label: string
+  kind: 'image'
+  width: number
+  height: number
+  steps: number
+  hint: string
+}
+
+export type ComfyPreset = H3Preset | ImagePreset
+
+/** 本地图像模型：Flux.2 klein 4B（GGUF Q4）+ Qwen3-4B 文本编码器 + Flux2 VAE */
+export const IMG_PRESETS: ImagePreset[] = [
+  {
+    id: 'flux2-1024',
+    label: 'Flux2 Klein 4B · 1024×1024 · 8步',
+    kind: 'image',
+    width: 1024,
+    height: 1024,
+    steps: 8,
+    hint: '约 1 分钟',
+  },
+  {
+    id: 'flux2-1024x1536',
+    label: 'Flux2 Klein 4B · 1024×1536 竖 · 8步',
+    kind: 'image',
+    width: 1024,
+    height: 1536,
+    steps: 8,
+    hint: '约 1~2 分钟',
+  },
+  {
+    id: 'flux2-1536x1024',
+    label: 'Flux2 Klein 4B · 1536×1024 横 · 8步',
+    kind: 'image',
+    width: 1536,
+    height: 1024,
+    steps: 8,
+    hint: '约 1~2 分钟',
+  },
+  {
+    id: 'flux2-1024-q4',
+    label: 'Flux2 Klein 4B · 1024×1024 · 4步（更快）',
+    kind: 'image',
+    width: 1024,
+    height: 1024,
+    steps: 4,
+    hint: '约 40 秒',
+  },
+]
+
 export const H3_PRESETS: H3Preset[] = [
   {
     id: 'h3-16x9-6s',
     label: 'H3 横屏 960×544 · 6.6s · 20步 · 带音轨',
+    kind: 'video',
     width: 960,
     height: 544,
     length: 158,
@@ -47,6 +101,7 @@ export const H3_PRESETS: H3Preset[] = [
   {
     id: 'h3-9x16-6s',
     label: 'H3 竖屏 544×960 · 6.6s · 20步 · 带音轨',
+    kind: 'video',
     width: 544,
     height: 960,
     length: 158,
@@ -58,6 +113,7 @@ export const H3_PRESETS: H3Preset[] = [
   {
     id: 'h3-16x9-draft',
     label: 'H3 草稿 864×480 · 3s · 10步 · 无音轨',
+    kind: 'video',
     width: 864,
     height: 480,
     length: 73,
@@ -69,6 +125,7 @@ export const H3_PRESETS: H3Preset[] = [
   {
     id: 'h3-9x16-draft',
     label: 'H3 竖屏草稿 480×864 · 3s · 10步 · 无音轨',
+    kind: 'video',
     width: 480,
     height: 864,
     length: 73,
@@ -79,12 +136,16 @@ export const H3_PRESETS: H3Preset[] = [
   },
 ]
 
-export function presetById(id: string): H3Preset | undefined {
-  return H3_PRESETS.find((p) => p.id === id)
+export function presetById(id: string): ComfyPreset | undefined {
+  return H3_PRESETS.find((p) => p.id === id) ?? IMG_PRESETS.find((p) => p.id === id)
 }
 
-export function presetIds(): string[] {
-  return H3_PRESETS.map((p) => p.id)
+/** 某个生成模式可选的本地预设；不给 mode 就是全部（设置页填默认模型时用） */
+export function presetIds(mode?: string): string[] {
+  if (mode === 'image') return IMG_PRESETS.map((p) => p.id)
+  if (mode === 'video') return H3_PRESETS.map((p) => p.id)
+  if (mode === 'text' || mode === 'audio') return []
+  return [...IMG_PRESETS.map((p) => p.id), ...H3_PRESETS.map((p) => p.id)]
 }
 
 function cleanBase(p: Provider): string {
@@ -381,10 +442,81 @@ function firstVideoOutput(entry: HistoryEntry): { filename: string; subfolder: s
   return null
 }
 
-/**
- * 本地 H3 图生视频：有参考图就走 i2v（首帧），没有首帧直接报错——
- * H3 这条链路本来就需要一张起始画面，纯文生视频请用 H3 官方 t2v 工作流。
- */
+/** Flux2 Klein 4B 文生图：GGUF unet + Qwen3-4B(GGUF) 文本编码器 + Flux2 VAE */
+export function buildImageGraph(preset: ImagePreset, prompt: string) {
+  return {
+    '1': { class_type: 'UnetLoaderGGUF', inputs: { unet_name: 'flux-2-klein-4b-Q4_0.gguf' } },
+    '2': {
+      class_type: 'CLIPLoaderGGUF',
+      inputs: { clip_name: 'Qwen3-4B-Q4_K_M.gguf', type: 'flux2' },
+    },
+    '3': { class_type: 'VAELoader', inputs: { vae_name: 'flux2-vae.safetensors' } },
+    '4': { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['2', 0] } },
+    '5': { class_type: 'CLIPTextEncode', inputs: { text: '', clip: ['2', 0] } },
+    '6': {
+      class_type: 'EmptyFlux2LatentImage',
+      inputs: { width: preset.width, height: preset.height, batch_size: 1 },
+    },
+    '7': {
+      class_type: 'Flux2Scheduler',
+      inputs: { steps: preset.steps, width: preset.width, height: preset.height },
+    },
+    '8': { class_type: 'BasicGuider', inputs: { model: ['1', 0], conditioning: ['4', 0] } },
+    '9': { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    '10': { class_type: 'RandomNoise', inputs: { noise_seed: Math.floor(Math.random() * 1e9) } },
+    '11': {
+      class_type: 'SamplerCustomAdvanced',
+      inputs: {
+        noise: ['10', 0],
+        guider: ['8', 0],
+        sampler: ['9', 0],
+        sigmas: ['7', 0],
+        latent_image: ['6', 0],
+      },
+    },
+    '12': { class_type: 'VAEDecode', inputs: { samples: ['11', 0], vae: ['3', 0] } },
+    '13': {
+      class_type: 'SaveImage',
+      inputs: { images: ['12', 0], filename_prefix: 'libre-flux2' },
+    },
+  }
+}
+
+function firstImageOutput(entry: HistoryEntry): { filename: string; subfolder: string } | null {
+  for (const nodeOut of Object.values(entry.outputs ?? {})) {
+    for (const v of Object.values(nodeOut)) {
+      if (!Array.isArray(v)) continue
+      for (const item of v) {
+        const it = item as { filename?: string; subfolder?: string }
+        if (it?.filename && /\.(png|webp|jpe?g)$/i.test(it.filename)) {
+          return { filename: it.filename, subfolder: it.subfolder ?? '' }
+        }
+      }
+    }
+  }
+  return null
+}
+
+/** 本地文生图：提交 → 轮询 → 取图 → dataURL */
+export async function generateComfyImage(
+  p: Provider,
+  model: string,
+  prompt: string,
+  onProgress?: (m: string) => void,
+): Promise<string> {
+  const preset = IMG_PRESETS.find((x) => x.id === model)
+  if (!preset) throw new Error(`未知的图像预设「${model}」，请在节点里重新选一个`)
+  onProgress?.(`提交文生图（${preset.width}×${preset.height} / ${preset.steps} 步）…`)
+  const id = await submit(p, buildImageGraph(preset, prompt))
+  const entry = await poll(p, id, onProgress)
+  const out = firstImageOutput(entry)
+  if (!out) throw new Error('任务完成但没有图片产物（检查 SaveImage 节点）')
+  onProgress?.('下载图片…')
+  const qs = new URLSearchParams({ filename: out.filename, subfolder: out.subfolder, type: 'output' })
+  const res = await jfetch(`${base(p)}/view?${qs.toString()}`, {}, 120_000)
+  if (!res.ok) throw new Error('下载图片失败：' + (await readError(res)))
+  return blobToDataURL(await res.blob())
+}
 export async function generateComfyVideo(
   p: Provider,
   model: string,
@@ -392,7 +524,7 @@ export async function generateComfyVideo(
   refs: VideoRefs = {},
   onProgress?: (m: string) => void,
 ): Promise<string> {
-  const preset = presetById(model)
+  const preset = H3_PRESETS.find((x) => x.id === model)
   if (!preset) throw new Error(`未知的 H3 预设「${model}」，请在节点里重新选一个`)
   const first = refs.images?.[0]
   if (!first) {

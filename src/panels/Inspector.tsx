@@ -11,7 +11,7 @@ import {
   generateVideo,
   listModels,
 } from '../api/openai'
-import { generateComfyVideo, presetById, presetIds } from '../api/comfyui'
+import { generateComfyVideo, generateComfyImage, presetById, presetIds } from '../api/comfyui'
 import { qcNode } from '../post'
 import { fitSize, loadImage, loadVideoMeta } from '../helpers'
 import { iterateFromNode } from '../branch'
@@ -220,7 +220,8 @@ export function Inspector() {
   // 本地 ComfyUI 没有 /models，模型名就是一条条 H3 预设。
   const isComfy = provider?.kind === 'comfyui'
   const fetched = provider ? fetchedModels[modelsKey] : undefined
-  const allModels = isComfy ? presetIds() : (fetched ?? provider?.models ?? [])
+  const allModels = isComfy ? presetIds(node.mode) : (fetched ?? provider?.models ?? [])
+  const activePreset = isComfy ? presetById(node.model ?? '') : undefined
   const query = (node.model ?? '').trim().toLowerCase()
   const modelOptions =
     query && !allModels.some((m) => m.toLowerCase() === query)
@@ -302,10 +303,15 @@ export function Inspector() {
         addNode(out, { history: false })
         addEdge({ id: uid(), from: node.id, to: out.id })
       } else {
+        // 本地 ComfyUI 走 Flux2 文生图；云端走 OpenAI 兼容接口
         const src =
-          refImages.length > 0
-            ? await generateImageEdit(provider, model, fullPrompt, refImages)
-            : await generateImage(provider, model, fullPrompt)
+          provider.kind === 'comfyui'
+            ? await generateComfyImage(provider, model, fullPrompt, (msg) =>
+                updateNode(node.id, { progress: msg }),
+              )
+            : refImages.length > 0
+              ? await generateImageEdit(provider, model, fullPrompt, refImages)
+              : await generateImage(provider, model, fullPrompt)
         const img = await loadImage(src)
         const { width, height } = fitSize(img.naturalWidth, img.naturalHeight)
         const out = { id: uid(), type: 'image' as const, ...outPos, width, height, src }
@@ -352,7 +358,7 @@ export function Inspector() {
               const next = providers.find((p) => p.id === e.target.value)
               updateNode(node.id, {
                 providerId: e.target.value,
-                model: next?.kind === 'comfyui' ? presetIds()[0] : (next?.models[0] ?? ''),
+                model: next?.kind === 'comfyui' ? (presetIds(node.mode)[0] ?? '') : (next?.models[0] ?? ''),
                 status: undefined,
                 error: undefined,
               })
@@ -431,10 +437,10 @@ export function Inspector() {
         </div>
       )}
 
-      {isComfy && presetById(node.model ?? '') && (
+      {isComfy && activePreset && (
         <p className="hint">
-          {presetById(node.model!)!.label} · {presetById(node.model!)!.hint}
-          {presetById(node.model!)!.audio ? ' · 自带 H3 原生音轨' : ' · 无音轨'}
+          {activePreset.label} · {activePreset.hint}
+          {activePreset.kind === 'video' ? (activePreset.audio ? ' · 自带 H3 原生音轨' : ' · 无音轨') : ''}
         </p>
       )}
 

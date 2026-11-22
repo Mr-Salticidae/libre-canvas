@@ -2,7 +2,9 @@
  * 本机后处理/服务桥的地址与请求封装。
  * 桥做三件事：跑超分补帧（/post）、跑成片质检（/qc）、启停本地 ComfyUI（/comfy/*）。
  */
-export const BRIDGE = (import.meta.env.VITE_POST_BRIDGE as string | undefined) || 'http://127.0.0.1:8791'
+// 在 Node 里跑脚本时没有 import.meta.env，兜底到默认地址（也方便单测）
+const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+export const BRIDGE = env?.VITE_POST_BRIDGE || 'http://127.0.0.1:8791'
 
 export async function bridgeFetch(
   path: string,

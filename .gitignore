@@ -6,3 +6,7 @@ dist
 # 本地验证产物
 test-out*.mp4
 test-post-out*.mp4
+
+# 本地验证产物
+test-flux2.png
+scripts/.tmp-*
