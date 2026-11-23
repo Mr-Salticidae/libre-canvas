@@ -23,6 +23,7 @@ export async function addNodeToNightQueue(nodeId: string): Promise<{ id: string;
   }
   const prompt = (node.prompt ?? '').trim()
   if (!prompt) throw new Error('提示词是空的')
+  const isLtx = preset.family === 'ltx'
 
   // 首帧：指向本节点的图片引用
   const edge = st.edges.find((e) => e.to === node.id && st.nodes[e.from]?.type === 'image')
@@ -31,12 +32,13 @@ export async function addNodeToNightQueue(nodeId: string): Promise<{ id: string;
   const id = 's' + uid().slice(0, 6)
   const job: Record<string, unknown> = {
     id,
-    type: 'h3',
+    type: isLtx ? 'ltx' : 'h3',
     prompt,
     width: preset.width,
     height: preset.height,
-    length: preset.length,
-    steps: preset.steps,
+    ...(isLtx
+      ? { frames: preset.frames, mode: preset.refine ? 'refine' : 'direct' }
+      : { length: preset.length, steps: preset.steps }),
     seed: Math.floor(Math.random() * 1e6),
     audio: preset.audio,
     target: '1920x1080',

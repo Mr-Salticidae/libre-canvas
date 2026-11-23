@@ -20,6 +20,7 @@ export interface H3Preset {
   id: string
   label: string
   kind: 'video'
+  family: 'h3'
   /** 生成分辨率，必须是 32 的倍数，0.4~0.52MP 是 8GB 卡的安全区 */
   width: number
   height: number
@@ -33,6 +34,79 @@ export interface H3Preset {
   hint: string
 }
 
+export interface LtxPreset {
+  id: string
+  label: string
+  kind: 'video'
+  family: 'ltx'
+  /** 最终像素尺寸；latent 取一半 */
+  width: number
+  height: number
+  /** 帧数，必须 8n+1 */
+  frames: number
+  fps: number
+  audio: boolean
+  /** 是否跑第二阶段升采样精修 */
+  refine: boolean
+  hint: string
+}
+
+/** LTX-2.3：25fps、自带同步音轨、8GB 卡上很慢，适合过夜 */
+export const LTX_PRESETS: LtxPreset[] = [
+  {
+    id: 'ltx-720p-2s',
+    label: 'LTX-2.3 · 720p(1280×720) · 2s直出 · 带音轨',
+    kind: 'video',
+    family: 'ltx',
+    width: 1280,
+    height: 720,
+    frames: 49,
+    fps: 25,
+    audio: true,
+    refine: false,
+    hint: '约 60~100 分钟（8GB 卡）',
+  },
+  {
+    id: 'ltx-720p-2s-refine',
+    label: 'LTX-2.3 · 720p · 2s升采样精修 · 带音轨',
+    kind: 'video',
+    family: 'ltx',
+    width: 1280,
+    height: 720,
+    frames: 49,
+    fps: 25,
+    audio: true,
+    refine: true,
+    hint: '约 1.5~3 小时（两段采样）',
+  },
+  {
+    id: 'ltx-720p-5s',
+    label: 'LTX-2.3 · 720p · 4.8s直出 · 带音轨',
+    kind: 'video',
+    family: 'ltx',
+    width: 1280,
+    height: 720,
+    frames: 121,
+    fps: 25,
+    audio: true,
+    refine: false,
+    hint: '约 2~3 小时',
+  },
+  {
+    id: 'ltx-480p-2s',
+    label: 'LTX-2.3 · 640×320 草稿 · 2s直出 · 带音轨',
+    kind: 'video',
+    family: 'ltx',
+    width: 640,
+    height: 320,
+    frames: 49,
+    fps: 25,
+    audio: true,
+    refine: false,
+    hint: '约 18~27 分钟（实测）',
+  },
+]
+
 export interface ImagePreset {
   id: string
   label: string
@@ -43,7 +117,7 @@ export interface ImagePreset {
   hint: string
 }
 
-export type ComfyPreset = H3Preset | ImagePreset
+export type ComfyPreset = H3Preset | LtxPreset | ImagePreset
 
 /** 本地图像模型：Flux.2 klein 4B（GGUF Q4）+ Qwen3-4B 文本编码器 + Flux2 VAE */
 export const IMG_PRESETS: ImagePreset[] = [
@@ -90,6 +164,7 @@ export const H3_PRESETS: H3Preset[] = [
     id: 'h3-16x9-6s',
     label: 'H3 横屏 960×544 · 6.6s · 20步 · 带音轨',
     kind: 'video',
+    family: 'h3',
     width: 960,
     height: 544,
     length: 158,
@@ -102,6 +177,7 @@ export const H3_PRESETS: H3Preset[] = [
     id: 'h3-9x16-6s',
     label: 'H3 竖屏 544×960 · 6.6s · 20步 · 带音轨',
     kind: 'video',
+    family: 'h3',
     width: 544,
     height: 960,
     length: 158,
@@ -114,6 +190,7 @@ export const H3_PRESETS: H3Preset[] = [
     id: 'h3-16x9-draft',
     label: 'H3 草稿 864×480 · 3s · 10步 · 无音轨',
     kind: 'video',
+    family: 'h3',
     width: 864,
     height: 480,
     length: 73,
@@ -126,6 +203,7 @@ export const H3_PRESETS: H3Preset[] = [
     id: 'h3-9x16-draft',
     label: 'H3 竖屏草稿 480×864 · 3s · 10步 · 无音轨',
     kind: 'video',
+    family: 'h3',
     width: 480,
     height: 864,
     length: 73,
@@ -137,13 +215,17 @@ export const H3_PRESETS: H3Preset[] = [
 ]
 
 export function presetById(id: string): ComfyPreset | undefined {
-  return H3_PRESETS.find((p) => p.id === id) ?? IMG_PRESETS.find((p) => p.id === id)
+  return (
+    H3_PRESETS.find((p) => p.id === id) ??
+    LTX_PRESETS.find((p) => p.id === id) ??
+    IMG_PRESETS.find((p) => p.id === id)
+  )
 }
 
 /** 某个生成模式可选的本地预设；不给 mode 就是全部（设置页填默认模型时用） */
 export function presetIds(mode?: string): string[] {
   if (mode === 'image') return IMG_PRESETS.map((p) => p.id)
-  if (mode === 'video') return H3_PRESETS.map((p) => p.id)
+  if (mode === 'video') return [...LTX_PRESETS.map((p) => p.id), ...H3_PRESETS.map((p) => p.id)]
   if (mode === 'text' || mode === 'audio') return []
   return [...IMG_PRESETS.map((p) => p.id), ...H3_PRESETS.map((p) => p.id)]
 }
@@ -390,7 +472,7 @@ async function poll(p: Provider, id: string, onProgress?: (m: string) => void): 
   const started = Date.now()
   let lastNote = ''
   for (;;) {
-    if (Date.now() - started > 60 * 60_000) throw new Error('ComfyUI 任务超时（60 分钟）')
+    if (Date.now() - started > 4 * 60 * 60_000) throw new Error('ComfyUI 任务超时（4 小时）')
     const res = await jfetch(`${base(p)}/history/${id}`, {}, 30_000)
     if (!res.ok) throw new Error('查询任务状态失败：' + (await readError(res)))
     const all = (await res.json()) as Record<string, HistoryEntry>
@@ -440,6 +522,127 @@ function firstVideoOutput(entry: HistoryEntry): { filename: string; subfolder: s
     }
   }
   return null
+}
+
+
+/** LTX-2.3 图：与 ltx23_run.py 同构（阶段一采样 → 可选升采样精修 → 分离 AV → 双解码） */
+export function buildLtxGraph(preset: LtxPreset, prompt: string, seed = Math.floor(Math.random() * 1e9)) {
+  const lw = Math.floor(preset.width / 2)
+  const lh = Math.floor(preset.height / 2)
+  const SIGMAS_1 = '0.85, 0.7250, 0.4219, 0.0'
+  const SIGMAS_2 = '1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0'
+  const NEG = 'pc game, console game, video game, cartoon, childish, ugly'
+
+  const g: Record<string, { class_type: string; inputs: Record<string, unknown> }> = {
+    '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'ltx-2.3-22b-dev-fp8.safetensors' } },
+    '2': {
+      class_type: 'LoraLoaderModelOnly',
+      inputs: {
+        model: ['1', 0],
+        lora_name: 'ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors',
+        strength_model: 0.5,
+      },
+    },
+    '3': {
+      class_type: 'LTXAVTextEncoderLoader',
+      inputs: {
+        text_encoder: 'gemma_3_12B_it_fp4_mixed.safetensors',
+        ckpt_name: 'ltx-2.3-22b-dev-fp8.safetensors',
+        device: 'default',
+      },
+    },
+    '4': {
+      class_type: 'LoraLoader',
+      inputs: {
+        model: ['2', 0],
+        clip: ['3', 0],
+        lora_name: 'gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors',
+        strength_model: 0,
+        strength_clip: 0,
+      },
+    },
+    '5': { class_type: 'CLIPTextEncode', inputs: { clip: ['4', 1], text: prompt } },
+    '6': { class_type: 'CLIPTextEncode', inputs: { clip: ['4', 1], text: NEG } },
+    '7': {
+      class_type: 'LTXVConditioning',
+      inputs: { positive: ['5', 0], negative: ['6', 0], frame_rate: 25 },
+    },
+    '10': {
+      class_type: 'EmptyLTXVLatentVideo',
+      inputs: { width: lw, height: lh, length: preset.frames, batch_size: 1 },
+    },
+    '11': { class_type: 'LTXVAudioVAELoader', inputs: { ckpt_name: 'ltx-2.3-22b-dev-fp8.safetensors' } },
+    '12': {
+      class_type: 'LTXVEmptyLatentAudio',
+      inputs: { frames_number: preset.frames, frame_rate: 25, batch_size: 1, audio_vae: ['11', 0] },
+    },
+    '13': { class_type: 'EmptyImage', inputs: { width: 512, height: 512, batch_size: 1, color: 0 } },
+    '14': { class_type: 'LTXVPreprocess', inputs: { image: ['13', 0], img_compression: 18 } },
+    '15': {
+      class_type: 'LTXVImgToVideoInplace',
+      inputs: { vae: ['1', 2], image: ['14', 0], latent: ['10', 0], strength: 0.7, bypass: true },
+    },
+    '16': { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['15', 0], audio_latent: ['12', 0] } },
+    '20': { class_type: 'ManualSigmas', inputs: { sigmas: SIGMAS_1 } },
+    '21': {
+      class_type: 'CFGGuider',
+      inputs: { model: ['4', 0], positive: ['7', 0], negative: ['7', 1], cfg: 1 },
+    },
+    '22': { class_type: 'RandomNoise', inputs: { noise_seed: seed } },
+    '23': { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } },
+    '24': {
+      class_type: 'SamplerCustomAdvanced',
+      inputs: {
+        noise: ['22', 0], guider: ['21', 0], sampler: ['23', 0],
+        sigmas: ['20', 0], latent_image: ['16', 0],
+      },
+    },
+    '25': { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['24', 0] } },
+  }
+
+  if (preset.refine) {
+    Object.assign(g, {
+      '30': { class_type: 'LatentUpscaleModelLoader', inputs: { model_name: 'ltx-2.3-spatial-upscaler-x2-1.1.safetensors' } },
+      '31': {
+        class_type: 'LTXVLatentUpsampler',
+        inputs: { samples: ['25', 0], upscale_model: ['30', 0], vae: ['1', 2] },
+      },
+      '32': {
+        class_type: 'LTXVImgToVideoInplace',
+        inputs: { vae: ['1', 2], image: ['14', 0], latent: ['31', 0], strength: 1, bypass: true },
+      },
+      '33': { class_type: 'LTXVConcatAVLatent', inputs: { video_latent: ['32', 0], audio_latent: ['25', 1] } },
+      '34': { class_type: 'ManualSigmas', inputs: { sigmas: SIGMAS_2 } },
+      '35': {
+        class_type: 'CFGGuider',
+        inputs: { model: ['4', 0], positive: ['7', 0], negative: ['7', 1], cfg: 1 },
+      },
+      '36': { class_type: 'RandomNoise', inputs: { noise_seed: seed + 1 } },
+      '37': {
+        class_type: 'SamplerCustomAdvanced',
+        inputs: {
+          noise: ['36', 0], guider: ['35', 0], sampler: ['23', 0],
+          sigmas: ['34', 0], latent_image: ['33', 0],
+        },
+      },
+      '38': { class_type: 'LTXVSeparateAVLatent', inputs: { av_latent: ['37', 0] } },
+    })
+  }
+
+  const src = preset.refine ? '38' : '25'
+  Object.assign(g, {
+    '40': {
+      class_type: 'VAEDecodeTiled',
+      inputs: { samples: [src, 0], vae: ['1', 2], tile_size: 512, overlap: 64, temporal_size: 4096, temporal_overlap: 4 },
+    },
+    '41': { class_type: 'LTXVAudioVAEDecode', inputs: { samples: [src, 1], audio_vae: ['11', 0] } },
+    '42': {
+      class_type: 'CreateVideo',
+      inputs: { images: ['40', 0], audio: ['41', 0], fps: 25, bit_depth: 'auto', color_space: 'sRGB' },
+    },
+    '43': { class_type: 'SaveVideo', inputs: { video: ['42', 0], filename_prefix: 'libre-ltx', format: 'auto', codec: 'auto' } },
+  })
+  return g
 }
 
 /** Flux2 Klein 4B 文生图：GGUF unet + Qwen3-4B(GGUF) 文本编码器 + Flux2 VAE */
@@ -524,16 +727,25 @@ export async function generateComfyVideo(
   refs: VideoRefs = {},
   onProgress?: (m: string) => void,
 ): Promise<string> {
-  const preset = H3_PRESETS.find((x) => x.id === model)
-  if (!preset) throw new Error(`未知的 H3 预设「${model}」，请在节点里重新选一个`)
-  const first = refs.images?.[0]
-  if (!first) {
-    throw new Error('H3 图生视频需要一张首帧：把一张图片卡右侧圆点拖到本节点上，再生成')
+  const h3 = H3_PRESETS.find((x) => x.id === model)
+  const ltx = LTX_PRESETS.find((x) => x.id === model)
+  if (!h3 && !ltx) throw new Error(`未知的视频预设「${model}」，请在节点里重新选一个`)
+
+  let id: string
+  if (ltx) {
+    // LTX 是 t2v：不需要首帧，提示词直接进图
+    onProgress?.(`提交 LTX（${ltx.width}×${ltx.height} / ${ltx.frames} 帧${ltx.refine ? ' / 两段精修' : ' / 直出'}）…`)
+    id = await submit(p, buildLtxGraph(ltx, prompt))
+  } else {
+    const first = refs.images?.[0]
+    if (!first) {
+      throw new Error('H3 图生视频需要一张首帧：把一张图片卡右侧圆点拖到本节点上，再生成')
+    }
+    onProgress?.('上传首帧…')
+    const imageName = await uploadFirstFrame(p, first)
+    onProgress?.('提交任务…')
+    id = await submit(p, buildGraph(h3!, prompt, imageName))
   }
-  onProgress?.('上传首帧…')
-  const imageName = await uploadFirstFrame(p, first)
-  onProgress?.('提交任务…')
-  const id = await submit(p, buildGraph(preset, prompt, imageName))
   const entry = await poll(p, id, onProgress)
   const out = firstVideoOutput(entry)
   if (!out) throw new Error('任务完成但没有视频产物（检查工作流是否接了 SaveVideo）')
