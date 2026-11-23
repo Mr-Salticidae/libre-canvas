@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
+import type { GenMode } from '../types'
 import { useProviders } from '../providers'
 import { useUI } from '../ui'
-import { uid, type GenMode } from '../types'
 import { listModels } from '../api/openai'
 import { presetById, presetIds } from '../api/comfyui'
 import { qcNode } from '../post'
@@ -26,12 +26,11 @@ export function Inspector() {
   const nodes = useStore((s) => s.nodes)
   const edges = useStore((s) => s.edges)
   const updateNode = useStore((s) => s.updateNode)
-  const addEdge = useStore((s) => s.addEdge)
   const removeEdge = useStore((s) => s.removeEdge)
   const providers = useProviders((s) => s.providers)
   const setSettingsOpen = useUI((s) => s.setSettingsOpen)
+  const collapsed = useUI((s) => s.inspectorCollapsed)
   const promptFocusTick = useUI((s) => s.promptFocusTick)
-  const [atOpen, setAtOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
   // 从 /models 拉到的真实模型列表，按提供商缓存（预设里的模型名未必对得上账号实际可用）
   const [fetchedModels, setFetchedModels] = useState<Record<string, string[]>>({})
@@ -157,15 +156,6 @@ export function Inspector() {
   const videoRefs = refEdges.filter((r) => r.from!.type === 'video')
   const audioRefs = refEdges.filter((r) => r.from!.type === 'audio')
 
-  // @ 引用候选：画布上可作为参考的其它卡片（未连过的图片/文本；视频模式下加上视频/音频）
-  const atCandidates = Object.values(nodes).filter(
-    (n) =>
-      n.id !== node.id &&
-      ((n.type === 'image' && n.src) ||
-        (n.type === 'text' && n.text?.trim()) ||
-        (node.mode === 'video' && (n.type === 'video' || n.type === 'audio') && n.src)) &&
-      !edges.some((e) => e.from === n.id && e.to === node.id),
-  )
 
   // 模型列表按「提供商 + 模式」缓存：同一家的文本/图片/视频模型是不同的集合
   const modelsKey = provider ? `${provider.id}:${node.mode ?? 'image'}` : ''
@@ -199,16 +189,34 @@ export function Inspector() {
       ? allModels.filter((m) => m.toLowerCase().includes(query))
       : allModels
 
-  const addRef = (fromId: string) => {
-    useStore.getState().snapshot()
-    addEdge({ id: uid(), from: fromId, to: node.id })
-  }
 
   const run = () => void runGenerator(node.id)
 
+  // 折叠状态同步到 body，供 CSS 调整小地图等元素
+  useEffect(() => {
+    document.body.dataset.panel = collapsed ? 'collapsed' : 'open'
+  }, [collapsed])
+
+  if (collapsed) {
+    return (
+      <button
+        className="panel-tab"
+        title="展开属性面板"
+        onClick={() => useUI.getState().setInspectorCollapsed(false)}
+      >
+        ‹ 属性
+      </button>
+    )
+  }
+
   return (
     <div className="inspector docked">
-      <h3>✦ AI 生成节点</h3>
+      <div className="panel-head">
+        <h3>✦ AI 生成节点</h3>
+        <button className="panel-collapse" title="折叠面板（给画布让位）" onClick={() => useUI.getState().setInspectorCollapsed(true)}>
+          ›
+        </button>
+      </div>
 
       <div className="seg">
         {MODES.map((m) => (
@@ -385,40 +393,8 @@ export function Inspector() {
         </>
       )}
 
-      <label>{node.mode === 'audio' ? '朗读文本' : '提示词'}</label>
-      <div className="prompt-wrap">
-        <textarea
-          rows={3}
-          value={node.prompt ?? ''}
-          placeholder={node.mode === 'audio' ? '输入要转成语音的文字…' : '描述你想生成的内容…（@ 引用画布卡片）'}
-          onChange={(e) => updateNode(node.id, { prompt: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === '@') setAtOpen(true)
-            else if (e.key === 'Escape') setAtOpen(false)
-          }}
-          onBlur={() => setTimeout(() => setAtOpen(false), 200)}
-        />
-        {atOpen && (
-          <div className="at-menu">
-            {atCandidates.length === 0 && <p className="hint">画布上没有可引用的图片/文本卡片</p>}
-            {atCandidates.slice(0, 8).map((c) => (
-              <button
-                key={c.id}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  // 吃掉刚敲下的 @，把卡片转成结构化引用
-                  updateNode(node.id, { prompt: (node.prompt ?? '').replace(/@$/, '') })
-                  addRef(c.id)
-                  setAtOpen(false)
-                }}
-              >
-                {c.type === 'image' ? '🖼' : c.type === 'video' ? '🎬' : c.type === 'audio' ? '🎵' : '📄'}{' '}
-                {(c.name || c.text || '未命名').slice(0, 26)}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <label>提示词</label>
+      <p className="hint">在画布底部的提示词栏里写（回车生成），这一栏只管参数。</p>
 
       <div className="run-row">
         <button className="primary" disabled={node.status === 'running'} onClick={() => void run()}>

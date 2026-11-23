@@ -47,6 +47,9 @@ interface UIState {
   promptFocusTick: number
   requestPromptFocus: () => void
   /** 右键菜单：屏幕坐标 + 命中的节点（空白处为 undefined） */
+  /** 右侧属性面板是否折叠（窄窗口下给画布让位） */
+  inspectorCollapsed: boolean
+  setInspectorCollapsed: (v: boolean) => void
   contextMenu: { x: number; y: number; nodeId?: string } | null
   setContextMenu: (m: { x: number; y: number; nodeId?: string } | null) => void
   /** 后台任务表，key 为任务 id */
@@ -73,6 +76,8 @@ export const useUI = create<UIState>((set) => ({
   setGuides: (guides) => set({ guides }),
   promptFocusTick: 0,
   requestPromptFocus: () => set((s) => ({ promptFocusTick: s.promptFocusTick + 1 })),
+  inspectorCollapsed: false,
+  setInspectorCollapsed: (inspectorCollapsed) => set({ inspectorCollapsed }),
   contextMenu: null,
   setContextMenu: (contextMenu) => set({ contextMenu }),
   jobs: {},

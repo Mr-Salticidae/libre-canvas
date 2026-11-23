@@ -6,6 +6,7 @@ import type { CanvasNode } from '../types'
 import { useStore } from '../store'
 import { useUI } from '../ui'
 import { CANVAS_FONT, usePalette } from '../theme'
+import { postProcessNode } from '../post'
 
 interface NodeProps {
   node: CanvasNode
@@ -199,6 +200,7 @@ export function ImageNode({ node, selected }: NodeProps) {
           listening={false}
         />
       )}
+      {hovered && !selected && <HoverTools node={node} />}
       <ConnectAnchor node={node} visible={hovered || selected} />
     </Group>
   )
@@ -231,6 +233,59 @@ function PlayButton({ x, y, playing, onToggle }: { x: number; y: number; playing
         fill="#fff"
         fontSize={playing ? 10 : 13}
       />
+    </Group>
+  )
+}
+
+
+/** 卡片右上角的悬停小工具条：不用右键也能操作 */
+function HoverTools({ node }: { node: CanvasNode }) {
+  const pal = usePalette()
+  const btns: { icon: string; title: string; act: () => void }[] = [
+    {
+      icon: '⤓',
+      title: '下载',
+      act: () => {
+        if (!node.src) return
+        const a = document.createElement('a')
+        a.href = node.src
+        a.download = node.name || `librecanvas-${node.type}`
+        a.click()
+      },
+    },
+  ]
+  if (node.type === 'video') {
+    btns.push({
+      icon: '✦',
+      title: '出 1080p 母版（超分+补帧）',
+      act: () => void postProcessNode(node.id, { target: '1920x1080', fps: 60 }),
+    })
+  }
+  if (node.type === 'image') {
+    btns.push({
+      icon: '🖌',
+      title: '局部重绘',
+      act: () => useUI.getState().setMaskEditingId(node.id),
+    })
+  }
+  return (
+    <Group x={node.width - 8 - btns.length * 30} y={8}>
+      {btns.map((b, i) => (
+        <Group
+          key={b.title}
+          x={i * 30}
+          onClick={(e) => {
+            e.cancelBubble = true
+            b.act()
+          }}
+          onDblClick={(e) => {
+            e.cancelBubble = true
+          }}
+        >
+          <Rect width={26} height={26} cornerRadius={13} fill="rgba(16,15,22,0.72)" stroke={pal.accent} strokeWidth={1} />
+          <Text text={b.icon} width={26} height={26} align="center" verticalAlign="middle" fill="#fff" fontSize={12} />
+        </Group>
+      ))}
     </Group>
   )
 }
@@ -342,6 +397,7 @@ export function VideoNode({ node, selected }: NodeProps) {
         />
       )}
       <PlayButton x={26} y={node.height - 26} playing={playing} onToggle={toggle} />
+      {hovered && !selected && <HoverTools node={node} />}
       {node.qc && (
         <Group x={node.width - 56} y={12}>
           <Rect

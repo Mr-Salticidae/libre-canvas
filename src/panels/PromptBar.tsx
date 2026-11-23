@@ -22,6 +22,9 @@ export function PromptBar() {
   const setSelection = useStore((s) => s.setSelection)
   const providers = useProviders((s) => s.providers)
   const [draft, setDraft] = useState('')
+  const [atOpen, setAtOpen] = useState(false)
+  const edges = useStore((s) => s.edges)
+  const addEdge = useStore((s) => s.addEdge)
 
   const selected = selection.length === 1 ? nodes[selection[0]] : undefined
   const target = selected?.type === 'generator' ? selected : undefined
@@ -67,6 +70,18 @@ export function PromptBar() {
     await runGenerator(node.id)
   }
 
+  // @ 引用候选：画布上能当参考的卡片（未连过本节点的）
+  const atCandidates = target
+    ? Object.values(nodes).filter(
+        (n) =>
+          n.id !== target.id &&
+          ((n.type === 'image' && n.src) ||
+            (n.type === 'text' && n.text?.trim()) ||
+            (target.mode === 'video' && (n.type === 'video' || n.type === 'audio') && n.src)) &&
+          !edges.some((e) => e.from === n.id && e.to === target.id),
+      )
+    : []
+
   const mode = target?.mode ?? 'image'
   const hint = target
     ? `${mode === 'video' ? '视频' : mode === 'text' ? '文本' : mode === 'audio' ? '音频' : '图片'} · ${target.model ?? '未选模型'}`
@@ -85,9 +100,35 @@ export function PromptBar() {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
             void submit()
+          } else if (e.key === '@' && target) {
+            setAtOpen(true)
+          } else if (e.key === 'Escape') {
+            setAtOpen(false)
           }
         }}
+        onBlur={() => setTimeout(() => setAtOpen(false), 200)}
       />
+      {atOpen && target && (
+        <div className="at-menu">
+          {atCandidates.length === 0 && <p className="hint">画布上没有可引用的图片/文本卡片</p>}
+          {atCandidates.slice(0, 8).map((c) => (
+            <button
+              key={c.id}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                updateNode(target.id, { prompt: (target.prompt ?? '').replace(/@$/, '') })
+                useStore.getState().snapshot()
+                addEdge({ id: uid(), from: c.id, to: target.id })
+                setAtOpen(false)
+              }}
+            >
+              {c.type === 'image' ? '🖼' : c.type === 'video' ? '🎬' : c.type === 'audio' ? '🎵' : '📄'}{' '}
+              {(c.name || c.text || '未命名').slice(0, 26)}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="prompt-bar-foot">
         <span className="prompt-hint">{hint}</span>
         <button className="primary" disabled={busy || !value.trim()} onClick={() => void submit()}>

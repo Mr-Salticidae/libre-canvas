@@ -1270,3 +1270,75 @@ label {
   border-radius: 10px;
   white-space: nowrap;
 }
+/* ===== 右侧面板折叠 ===== */
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panel-collapse {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 8px;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.panel-collapse:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 折叠后的窄标签，贴在右边缘 */
+.panel-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 11;
+  padding: 14px 6px;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--paper-2) 92%, transparent);
+  border: 1px solid var(--line);
+  border-right: none;
+  border-radius: 12px 0 0 12px;
+  cursor: pointer;
+}
+
+.panel-tab:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* 折叠时小地图回到右下角 */
+body[data-panel='collapsed'] .minimap {
+  right: 14px;
+}
+/* 提示词栏里的 @ 菜单（浮在栏上方） */
+.prompt-bar {
+  position: fixed;
+}
+
+.prompt-bar .at-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 8px;
+  right: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 18px 40px -20px rgba(var(--shadow), 0.5);
+  z-index: 12;
+}
