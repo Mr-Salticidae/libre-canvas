@@ -10,3 +10,4 @@ test-post-out*.mp4
 # 本地验证产物
 test-flux2.png
 scripts/.tmp-*
+launchers/logs/
