@@ -1,0 +1,53 @@
+- generic [ref=f2e2]:
+  - generic [ref=f2e6]:
+    - generic "自由画布 LibreCanvas" [ref=f2e7]: LC
+    - generic [ref=f2e8]:
+      - button "✦ 生成" [ref=f2e9] [cursor=pointer]:
+        - generic [ref=f2e10]: ✦
+        - generic [ref=f2e11]: 生成
+      - button "T 文本" [ref=f2e12] [cursor=pointer]:
+        - generic [ref=f2e13]: T
+        - generic [ref=f2e14]: 文本
+      - button "⤒ 上传" [ref=f2e15] [cursor=pointer]:
+        - generic [ref=f2e16]: ⤒
+        - generic [ref=f2e17]: 上传
+      - button "▤ 画布" [ref=f2e18] [cursor=pointer]:
+        - generic [ref=f2e19]: ▤
+        - generic [ref=f2e20]: 画布
+    - generic [ref=f2e21]:
+      - button "⤺" [ref=f2e22] [cursor=pointer]
+      - button "⤻" [ref=f2e24] [cursor=pointer]
+      - button "⌖" [ref=f2e26] [cursor=pointer]
+    - generic [ref=f2e28]:
+      - button "⇩" [ref=f2e29] [cursor=pointer]
+      - button "⇧" [ref=f2e31] [cursor=pointer]
+      - button "⚙" [ref=f2e33] [cursor=pointer]
+      - button "☀" [ref=f2e35] [cursor=pointer]
+      - generic [ref=f2e37]: 100%
+  - generic [ref=f2e44]:
+    - generic [ref=f2e45]:
+      - heading "✦ AI 生成节点" [level=3] [ref=f2e46]
+      - button "›" [ref=f2e47] [cursor=pointer]
+    - generic [ref=f2e48]:
+      - button "图像" [ref=f2e49] [cursor=pointer]
+      - button "文本" [ref=f2e50] [cursor=pointer]
+      - button "视频" [ref=f2e51] [cursor=pointer]
+      - button "音频" [ref=f2e52] [cursor=pointer]
+    - generic [ref=f2e53]: 提供商 / 模型
+    - generic [ref=f2e54]:
+      - combobox [active] [ref=f2e55]:
+        - option "本地 ComfyUI" [selected]
+      - generic [ref=f2e56]:
+        - textbox "选一个 H3 预设" [ref=f2e57]
+        - button "▾" [ref=f2e58] [cursor=pointer]
+    - generic [ref=f2e59]: 引用（0）
+    - paragraph [ref=f2e60]: 在提示词里输入 @ 引用画布卡片，或从卡片右侧圆点拖线连到本节点。
+    - generic [ref=f2e61]: 提示词
+    - paragraph [ref=f2e62]: 在画布底部的提示词栏里写（回车生成），这一栏只管参数。
+    - button "生成" [ref=f2e64] [cursor=pointer]
+  - generic [ref=f2e43] [cursor=pointer]
+  - generic [ref=f2e38]:
+    - textbox "描述你想要的画面，回车生成（Shift+回车换行）" [ref=f2e65]
+    - generic [ref=f2e40]:
+      - generic [ref=f2e41]: 视频 · 未选模型
+      - button "生成" [disabled] [ref=f2e42]

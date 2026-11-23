@@ -58,6 +58,11 @@ export function Inspector() {
     }
   }, [promptFocusTick])
 
+  // 折叠状态同步到 body（必须放在所有 return 之前——hook 顺序不能变，否则选中节点时整页白屏）
+  useEffect(() => {
+    document.body.dataset.panel = collapsed ? 'collapsed' : 'open'
+  }, [collapsed])
+
   const node = selection.length === 1 ? nodes[selection[0]] : undefined
 
   if (node && node.type !== 'generator') {
@@ -178,7 +183,7 @@ export function Inspector() {
   // 「常用模型」是设置里配的一份通用列表，不区分模式（文本/图片/视频共用同一份）。
   // 一旦按当前模式实拉过（fetched 有值，服务端已按 type 过滤），就只信实拉结果，
   // 否则别的模式配的模型（如文本模型）会混进视频列表；没拉过时才拿它垫底展示。
-  // 本地 ComfyUI 没有 /models，模型名就是一条条 H3 预设。
+  // 本地 ComfyUI 没有 /models，模型名就是一条条预设（H3 视频 / LTX 视频 / Flux2 图像）。
   const isComfy = provider?.kind === 'comfyui'
   const fetched = provider ? fetchedModels[modelsKey] : undefined
   const allModels = isComfy ? presetIds(node.mode) : (fetched ?? provider?.models ?? [])
@@ -191,11 +196,6 @@ export function Inspector() {
 
 
   const run = () => void runGenerator(node.id)
-
-  // 折叠状态同步到 body，供 CSS 调整小地图等元素
-  useEffect(() => {
-    document.body.dataset.panel = collapsed ? 'collapsed' : 'open'
-  }, [collapsed])
 
   if (collapsed) {
     return (
@@ -259,7 +259,7 @@ export function Inspector() {
           <div className="model-field">
             <input
               value={node.model ?? ''}
-              placeholder={isComfy ? '选一个 H3 预设' : MODEL_PLACEHOLDER[node.mode ?? 'image']}
+              placeholder={isComfy ? '选一个本地预设（H3 / LTX / Flux2）' : MODEL_PLACEHOLDER[node.mode ?? 'image']}
               spellCheck={false}
               autoComplete="off"
               onChange={(e) => updateNode(node.id, { model: e.target.value })}
@@ -288,7 +288,7 @@ export function Inspector() {
             <div className="model-menu">
               <div className="model-menu-head">
                 <span>
-                  {modelOptions.length} 个{isComfy ? 'H3 预设' : `${MODE_LABEL[node.mode ?? 'image']}模型`}
+                  {modelOptions.length} 个{isComfy ? '本地预设' : `${MODE_LABEL[node.mode ?? 'image']}模型`}
                   {!isComfy && fetchedModels[modelsKey] ? '（来自接口）' : ''}
                 </span>
                 {!isComfy && (
