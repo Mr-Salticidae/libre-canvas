@@ -11,7 +11,7 @@
 // 可配环境变量：PORT / PYTHON / POST_SCRIPT / QC_SCRIPT
 
 import { createServer } from 'node:http'
-import { mkdtempSync, createWriteStream, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, createWriteStream, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
@@ -31,6 +31,44 @@ const COMFY_ARGS = (
   '-s ComfyUI/main.py --windows-standalone-build --lowvram --async-offload --reserve-vram 0.6'
 ).split(/\s+/)
 const COMFY_URL = process.env.COMFY_URL || 'http://127.0.0.1:8188'
+/** 夜间队列文件（night_queue.py 直接读这个） */
+const QUEUE_FILE =
+  process.env.QUEUE_FILE || 'D:/AIGC工作站/99_工具/minimax_h3_tool/scripts/queue.night.json'
+
+/** 把 dataURL 的首帧写进 ComfyUI 的 input 目录，返回它认的文件名 */
+async function uploadImageToComfy(dataURL, filename) {
+  const [head, b64] = dataURL.split(',')
+  const mime = (head.match(/data:(.*?)[;,]/) || [])[1] || 'image/png'
+  const bin = Buffer.from(b64, 'base64')
+  const blob = new Blob([bin], { type: mime })
+  const fd = new FormData()
+  fd.append('image', blob, filename)
+  fd.append('overwrite', 'true')
+  fd.append('type', 'input')
+  const r = await fetch(`${COMFY_URL}/upload/image`, { method: 'POST', body: fd })
+  if (!r.ok) throw new Error(`上传首帧失败 HTTP ${r.status}：${(await r.text()).slice(0, 200)}`)
+  const j = await r.json()
+  if (!j?.name) throw new Error('上传首帧失败：ComfyUI 没返回文件名')
+  return j.subfolder ? `${j.subfolder}/${j.name}` : j.name
+}
+
+/** 追加任务到夜间队列（同 id 覆盖，保持顺序） */
+function appendToQueue(job) {
+  let q = { defaults: { target: '1920x1080', fps: 60, grain: 2, motion_blur: true }, jobs: [] }
+  if (existsSync(QUEUE_FILE)) {
+    try {
+      q = JSON.parse(readFileSync(QUEUE_FILE, 'utf8'))
+    } catch {
+      // 文件坏了就重建，别让队列服务整个挂掉
+    }
+  }
+  q.jobs = q.jobs || []
+  const idx = q.jobs.findIndex((x) => x.id === job.id)
+  if (idx >= 0) q.jobs[idx] = job
+  else q.jobs.push(job)
+  writeFileSync(QUEUE_FILE, JSON.stringify(q, null, 2), 'utf8')
+  return { count: q.jobs.length, path: QUEUE_FILE }
+}
 
 /** id → { state, progress, note, dir, out, error } */
 const jobs = new Map()
@@ -265,6 +303,31 @@ const server = createServer(async (req, res) => {
       json(res, 200, { state: 'timeout', error: '180 秒内没起来，去看 ComfyUI 窗口的报错' })
     })()
     return
+  }
+
+  if (req.method === 'POST' && url.pathname === '/queue/add') {
+    const chunks = []
+    for await (const c of req) chunks.push(Buffer.from(c))
+    let body
+    try {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')
+    } catch {
+      return json(res, 400, { error: '请求体不是 JSON' })
+    }
+    try {
+      const job = { ...(body.job || {}) }
+      if (!job.id) job.id = 'q' + Date.now().toString(36)
+      // 画布里的首帧是 dataURL，队列要的是 ComfyUI input 里的文件名
+      if (job.image_data_url) {
+        job.image = await uploadImageToComfy(job.image_data_url, `libre-${job.id}.png`)
+        delete job.image_data_url
+      }
+      const r = appendToQueue(job)
+      console.log(`[post-bridge] 队列 +1 → ${r.count} 条（${job.id}）`)
+      return json(res, 200, { ok: true, ...r, id: job.id, image: job.image })
+    } catch (e) {
+      return json(res, 500, { ok: false, error: String(e).slice(0, 300) })
+    }
   }
 
   json(res, 404, { error: '未知路由' })

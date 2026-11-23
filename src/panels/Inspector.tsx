@@ -13,6 +13,7 @@ import {
 } from '../api/openai'
 import { generateComfyVideo, generateComfyImage, presetById, presetIds } from '../api/comfyui'
 import { qcNode } from '../post'
+import { addNodeToNightQueue } from '../queue'
 import { fitSize, loadImage, loadVideoMeta } from '../helpers'
 import { iterateFromNode } from '../branch'
 import { MODE_LABEL } from '../canvas/nodes'
@@ -26,27 +27,6 @@ const MODEL_PLACEHOLDER: Record<GenMode, string> = {
   audio: '如 gpt-4o-mini-tts / tts-1',
 }
 
-/** 浮动面板：跟随选中节点，出现在节点下方；放不下则翻到上方（bottom 锚定，无需精确估高） */
-function floatStyle(
-  node: { x: number; y: number; width: number; height: number },
-  camera: { x: number; y: number; scale: number },
-  panelW: number,
-  estH: number,
-): React.CSSProperties {
-  const sx = node.x * camera.scale + camera.x
-  const sy = node.y * camera.scale + camera.y
-  const nodeW = node.width * camera.scale
-  const nodeH = node.height * camera.scale
-  let left = sx + nodeW / 2 - panelW / 2
-  left = Math.max(12, Math.min(left, window.innerWidth - panelW - 12))
-  const below = sy + nodeH + 14
-  if (below + estH <= window.innerHeight - 12) {
-    return { left, top: below, width: panelW }
-  }
-  // 贴着节点上缘向上展开
-  return { left, bottom: Math.max(12, window.innerHeight - sy + 14), width: panelW }
-}
-
 export function Inspector() {
   const selection = useStore((s) => s.selection)
   const nodes = useStore((s) => s.nodes)
@@ -57,7 +37,6 @@ export function Inspector() {
   const removeEdge = useStore((s) => s.removeEdge)
   const providers = useProviders((s) => s.providers)
   const setSettingsOpen = useUI((s) => s.setSettingsOpen)
-  const camera = useUI((s) => s.camera)
   const promptFocusTick = useUI((s) => s.promptFocusTick)
   const [atOpen, setAtOpen] = useState(false)
   const [modelOpen, setModelOpen] = useState(false)
@@ -161,7 +140,7 @@ export function Inspector() {
     }
     if (!actions) return null
     return (
-      <div className="node-bar" style={floatStyle(node, camera, barW, 48)}>
+      <div className="node-bar docked" style={{ width: barW }}>
         {actions}
       </div>
     )
@@ -329,7 +308,7 @@ export function Inspector() {
   }
 
   return (
-    <div className="inspector" style={floatStyle(node, camera, 340, 430)}>
+    <div className="inspector docked">
       <h3>✦ AI 生成节点</h3>
 
       <div className="seg">
@@ -542,9 +521,24 @@ export function Inspector() {
         )}
       </div>
 
-      <button className="primary" disabled={node.status === 'running'} onClick={() => void run()}>
-        {node.status === 'running' ? '生成中…' : '生成'}
-      </button>
+      <div className="run-row">
+        <button className="primary" disabled={node.status === 'running'} onClick={() => void run()}>
+          {node.status === 'running' ? '生成中…' : '生成'}
+        </button>
+        {isComfy && activePreset?.kind === 'video' && (
+          <button
+            className="ghost"
+            title="写进夜间队列，由 night_queue.py 串行跑（生成→后处理→质检），不需要浏览器开着"
+            onClick={() => {
+              addNodeToNightQueue(node.id)
+                .then((r) => updateNode(node.id, { progress: `已加入夜间队列（共 ${r.count} 条）` }))
+                .catch((e) => updateNode(node.id, { error: e instanceof Error ? e.message : String(e) }))
+            }}
+          >
+            ☾ 夜间队列
+          </button>
+        )}
+      </div>
 
       {node.status === 'error' && <p className="error">{node.error}</p>}
     </div>

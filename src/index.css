@@ -1090,3 +1090,55 @@ label {
   color: var(--danger) !important;
   background: rgba(255, 107, 107, 0.12) !important;
 }
+/* ===== 布局重构：对齐即梦式「右侧属性面板 + 底部操作条」 ===== */
+
+/* 生成节点面板：从跟随节点浮动，改为固定停靠在右侧 */
+.inspector.docked {
+  top: 14px;
+  right: 14px;
+  left: auto;
+  bottom: 14px;
+  width: 340px;
+  max-height: none;
+  overflow-y: auto;
+}
+
+/* 选中媒体卡片的操作条：固定到底部居中 */
+.node-bar.docked {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: 18px;
+  transform: translateX(-50%);
+}
+
+/* 生成 / 夜间队列 并排 */
+.run-row {
+  display: flex;
+  gap: 8px;
+}
+
+.run-row .primary {
+  flex: 1 1 auto;
+}
+
+.ghost {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 小地图让位给右侧面板 */
+.minimap {
+  right: 372px;
+}
