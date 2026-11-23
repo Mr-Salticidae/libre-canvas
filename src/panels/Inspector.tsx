@@ -3,18 +3,12 @@ import { useStore } from '../store'
 import { useProviders } from '../providers'
 import { useUI } from '../ui'
 import { uid, type GenMode } from '../types'
-import {
-  generateImage,
-  generateImageEdit,
-  generateSpeech,
-  generateText,
-  generateVideo,
-  listModels,
-} from '../api/openai'
-import { generateComfyVideo, generateComfyImage, presetById, presetIds } from '../api/comfyui'
+import { listModels } from '../api/openai'
+import { presetById, presetIds } from '../api/comfyui'
 import { qcNode } from '../post'
 import { addNodeToNightQueue } from '../queue'
-import { fitSize, loadImage, loadVideoMeta } from '../helpers'
+import { runGenerator } from '../generate'
+
 import { iterateFromNode } from '../branch'
 import { MODE_LABEL } from '../canvas/nodes'
 
@@ -32,7 +26,6 @@ export function Inspector() {
   const nodes = useStore((s) => s.nodes)
   const edges = useStore((s) => s.edges)
   const updateNode = useStore((s) => s.updateNode)
-  const addNode = useStore((s) => s.addNode)
   const addEdge = useStore((s) => s.addEdge)
   const removeEdge = useStore((s) => s.removeEdge)
   const providers = useProviders((s) => s.providers)
@@ -163,7 +156,6 @@ export function Inspector() {
   const textRefs = refEdges.filter((r) => r.from!.type === 'text')
   const videoRefs = refEdges.filter((r) => r.from!.type === 'video')
   const audioRefs = refEdges.filter((r) => r.from!.type === 'audio')
-  const refImages = imageRefs.map((r) => r.from!.src!)
 
   // @ 引用候选：画布上可作为参考的其它卡片（未连过的图片/文本；视频模式下加上视频/音频）
   const atCandidates = Object.values(nodes).filter(
@@ -212,100 +204,7 @@ export function Inspector() {
     addEdge({ id: uid(), from: fromId, to: node.id })
   }
 
-  const run = async () => {
-    if (!provider) {
-      setSettingsOpen(true)
-      return
-    }
-    const model = node.model?.trim()
-    const prompt = node.prompt?.trim()
-    if (!model) {
-      updateNode(node.id, { status: 'error', error: '请先填写模型名' })
-      return
-    }
-    if (!prompt) {
-      updateNode(node.id, { status: 'error', error: '请先填写提示词' })
-      return
-    }
-    // 文本引用作为上下文并入提示词（TTS 朗读原文，不并入）
-    const refTextContents = textRefs.map((r) => r.from!.text!.trim())
-    const fullPrompt =
-      refTextContents.length > 0 && node.mode !== 'audio'
-        ? `${prompt}\n\n【引用资料】\n${refTextContents.map((t, i) => `${i + 1}. ${t}`).join('\n')}`
-        : prompt
-
-    updateNode(node.id, {
-      status: 'running',
-      error: undefined,
-      // 本地生成动辄十几分钟，先把预期写在节点上，别让用户以为卡死
-      progress:
-        provider.kind === 'comfyui'
-          ? `预计 ${presetById(model)?.hint ?? '5~15 分钟'}，正在上传首帧…`
-          : undefined,
-    })
-    const outPos = { x: node.x + node.width + 80, y: node.y }
-    try {
-      if (node.mode === 'text') {
-        const text = await generateText(provider, model, fullPrompt, refImages)
-        const out = { id: uid(), type: 'text' as const, ...outPos, width: 360, height: 120, text }
-        addNode(out, { history: false })
-        addEdge({ id: uid(), from: node.id, to: out.id })
-      } else if (node.mode === 'video') {
-        const refs = {
-          images: refImages,
-          videos: videoRefs.map((r) => r.from!.src!),
-          audios: audioRefs.map((r) => r.from!.src!),
-        }
-        const src =
-          provider.kind === 'comfyui'
-            ? await generateComfyVideo(provider, model, fullPrompt, refs, (msg) =>
-                updateNode(node.id, { progress: msg }),
-              )
-            : await generateVideo(provider, model, fullPrompt, refs, (msg) =>
-                updateNode(node.id, { progress: msg }),
-              )
-        const { width, height } = await loadVideoMeta(src)
-        const out = { id: uid(), type: 'video' as const, ...outPos, width, height, src, name: prompt.slice(0, 30) }
-        addNode(out, { history: false })
-        addEdge({ id: uid(), from: node.id, to: out.id })
-      } else if (node.mode === 'audio') {
-        const src = await generateSpeech(provider, model, prompt, node.voice ?? 'alloy')
-        const out = {
-          id: uid(),
-          type: 'audio' as const,
-          ...outPos,
-          width: 280,
-          height: 84,
-          src,
-          name: prompt.slice(0, 30),
-        }
-        addNode(out, { history: false })
-        addEdge({ id: uid(), from: node.id, to: out.id })
-      } else {
-        // 本地 ComfyUI 走 Flux2 文生图；云端走 OpenAI 兼容接口
-        const src =
-          provider.kind === 'comfyui'
-            ? await generateComfyImage(provider, model, fullPrompt, (msg) =>
-                updateNode(node.id, { progress: msg }),
-              )
-            : refImages.length > 0
-              ? await generateImageEdit(provider, model, fullPrompt, refImages)
-              : await generateImage(provider, model, fullPrompt)
-        const img = await loadImage(src)
-        const { width, height } = fitSize(img.naturalWidth, img.naturalHeight)
-        const out = { id: uid(), type: 'image' as const, ...outPos, width, height, src }
-        addNode(out, { history: false })
-        addEdge({ id: uid(), from: node.id, to: out.id })
-      }
-      updateNode(node.id, { status: 'idle', progress: undefined })
-    } catch (e) {
-      updateNode(node.id, {
-        status: 'error',
-        progress: undefined,
-        error: e instanceof Error ? e.message : String(e),
-      })
-    }
-  }
+  const run = () => void runGenerator(node.id)
 
   return (
     <div className="inspector docked">
