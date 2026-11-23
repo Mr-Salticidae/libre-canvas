@@ -55,42 +55,42 @@ export interface LtxPreset {
 export const LTX_PRESETS: LtxPreset[] = [
   {
     id: 'ltx-720p-2s',
-    label: 'LTX-2.3 · 720p(1280×720) · 2s直出 · 带音轨',
+    label: 'LTX-2.3 · 1280×704 · 2s 直出（草稿级）· 带音轨',
     kind: 'video',
     family: 'ltx',
     width: 1280,
-    height: 720,
+    height: 704,
     frames: 49,
     fps: 25,
     audio: true,
     refine: false,
-    hint: '约 60~100 分钟（8GB 卡）',
+    hint: '实测 4.9 分钟/2 秒；3 步直出，提示词遵循偏弱',
   },
   {
     id: 'ltx-720p-2s-refine',
-    label: 'LTX-2.3 · 720p · 2s升采样精修 · 带音轨',
+    label: 'LTX-2.3 · 1280×704 · 2s 两段精修（成片级）· 带音轨',
     kind: 'video',
     family: 'ltx',
     width: 1280,
-    height: 720,
+    height: 704,
     frames: 49,
     fps: 25,
     audio: true,
     refine: true,
-    hint: '约 1.5~3 小时（两段采样）',
+    hint: '11 步两段采样，质量明显更好（实测中）',
   },
   {
     id: 'ltx-720p-5s',
-    label: 'LTX-2.3 · 720p · 4.8s直出 · 带音轨',
+    label: 'LTX-2.3 · 1280×704 · 4.8s 直出（草稿级）· 带音轨',
     kind: 'video',
     family: 'ltx',
     width: 1280,
-    height: 720,
+    height: 704,
     frames: 121,
     fps: 25,
     audio: true,
     refine: false,
-    hint: '约 2~3 小时',
+    hint: '约 12 分钟（帧数是 2.4 倍，按实测推算）',
   },
   {
     id: 'ltx-480p-2s',
@@ -103,7 +103,7 @@ export const LTX_PRESETS: LtxPreset[] = [
     fps: 25,
     audio: true,
     refine: false,
-    hint: '约 18~27 分钟（实测）',
+    hint: '约 2~3 分钟（草稿）',
   },
 ]
 
@@ -527,8 +527,9 @@ function firstVideoOutput(entry: HistoryEntry): { filename: string; subfolder: s
 
 /** LTX-2.3 图：与 ltx23_run.py 同构（阶段一采样 → 可选升采样精修 → 分离 AV → 双解码） */
 export function buildLtxGraph(preset: LtxPreset, prompt: string, seed = Math.floor(Math.random() * 1e9)) {
-  const lw = Math.floor(preset.width / 2)
-  const lh = Math.floor(preset.height / 2)
+  // 直出：latent 就是最终像素尺寸；精修：第一段做一半，靠 upsampler ×2 补回
+  const lw = preset.refine ? Math.floor(preset.width / 2) : preset.width
+  const lh = preset.refine ? Math.floor(preset.height / 2) : preset.height
   const SIGMAS_1 = '0.85, 0.7250, 0.4219, 0.0'
   const SIGMAS_2 = '1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0'
   const NEG = 'pc game, console game, video game, cartoon, childish, ugly'
